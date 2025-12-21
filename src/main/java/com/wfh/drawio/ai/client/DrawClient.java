@@ -1,9 +1,11 @@
 package com.wfh.drawio.ai.client;
 
 import com.wfh.drawio.ai.advisor.MyLoggerAdvisor;
+import com.wfh.drawio.ai.utils.PromptUtil;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
@@ -18,8 +20,12 @@ public class DrawClient {
 
     private final ChatClient chatClient;
 
+    @Value("${spring.ai.openai.chat.options.model}")
+    private String model;
+
     public DrawClient(ChatModel openaiChatModel){
         chatClient = ChatClient.builder(openaiChatModel)
+                .defaultSystem(PromptUtil.getSystemPrompt(model, true))
                 .defaultAdvisors(new MyLoggerAdvisor())
                 .build();
     }
