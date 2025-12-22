@@ -6,13 +6,11 @@ import com.wfh.drawio.ai.chatmemory.DbBaseChatMemory;
 import com.wfh.drawio.ai.model.StreamEvent;
 import com.wfh.drawio.ai.utils.DiagramContextUtil;
 import com.wfh.drawio.ai.utils.PromptUtil;
-import jakarta.annotation.Resource;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
@@ -29,10 +27,6 @@ import reactor.core.publisher.Sinks;
 public class DrawClient {
 
     private final ChatClient chatClient;
-
-    // 注入自动发现的所有工具
-    @Resource
-    private ToolCallback[] allTools;
 
     @Value("${spring.ai.openai.chat.options.model}")
     private String model;
@@ -56,7 +50,7 @@ public class DrawClient {
         ChatResponse chatResponse = this.chatClient
                 .prompt()
                 .user(message)
-                .toolCallbacks(allTools)  // 调用时设置工具
+                // 不再手动设置工具，让Spring AI自动发现
                 .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, diagramId))
                 .call()
                 .chatResponse();
@@ -78,7 +72,7 @@ public class DrawClient {
                 .map(JSONUtil::toJsonStr);
         Flux<String> aiResFlux = chatClient.prompt()
                 .user(message)
-                .toolCallbacks(allTools)  // 调用时设置工具
+                // 不再手动设置工具，让Spring AI自动发现
                 .advisors(advisorSpec -> advisorSpec.param(ChatMemory.CONVERSATION_ID, diagramId))
                 .stream()
                 .content()
