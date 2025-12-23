@@ -1,7 +1,6 @@
 package com.wfh.drawio.ai.chatmemory;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wfh.drawio.model.entity.Conversion;
 import com.wfh.drawio.model.entity.Diagram;
 import com.wfh.drawio.service.ConversionService;
@@ -12,9 +11,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,8 +37,12 @@ public class DbBaseChatMemory implements ChatMemory {
     @Resource
     private DiagramService diagramService;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /**
+     * 加入消息
+     * @param conversationId
+     * @param messages
+     */
     @Override
     public void add(@NotNull String conversationId, @NotNull List<Message> messages) {
         if (messages == null || messages.isEmpty()) {
@@ -47,13 +51,21 @@ public class DbBaseChatMemory implements ChatMemory {
         saveConversation(conversationId, messages);
     }
 
+    /**
+     * 获取消息
+     * @param conversationId
+     * @return
+     */
     @Override
     public List<Message> get(String conversationId) {
-        return get(conversationId, 10);
+        return get(conversationId, 20);
     }
 
     /**
-     * 获取指定会话的最近 N 条消息（自定义扩展方法）
+     * 获取消息
+     * @param conversationId
+     * @param lastN
+     * @return
      */
     public List<Message> get(String conversationId, int lastN) {
         List<Message> messageList = getOrCreateConversation(conversationId);
@@ -62,72 +74,122 @@ public class DbBaseChatMemory implements ChatMemory {
     }
 
     /**
-     * 保存消息到当前会话id
-     *
+     * 保存消息
      * @param diagramId
      * @param messages
      */
+    @Transactional(rollbackFor = Exception.class)
     public void saveConversation(String diagramId, List<Message> messages) {
-        Diagram diagram = diagramService.getOne(new QueryWrapper<>(Diagram.class).eq("id", Long.valueOf(diagramId)));
+        Long id = Long.valueOf(diagramId);
+
+        // 只查询 userId 字段，避免加载整个 Diagram 对象
+        Diagram diagram = diagramService.lambdaQuery()
+                .select(Diagram::getUserId)
+                .eq(Diagram::getId, id)
+                .one();
+
+        if (diagram == null) {
+            log.error("对话不存在: {}", diagramId);
+            return;
+        }
         Long userId = diagram.getUserId();
+
+        // 准备一个列表用于批量插入
+        List<Conversion> batchList = new ArrayList<>(messages.size());
+
         for (Message message : messages) {
-            // 获取当前消息的类型
-            String type = message.getMessageType().getValue();
             Conversion conversion = new Conversion();
-            conversion.setDiagramId(Long.valueOf(diagramId));
-            String text = message.getText();
+            conversion.setDiagramId(id);
             conversion.setUserId(userId);
-            if (type.equals(MessageType.ASSISTANT.getValue())){
-                conversion.setMessageType("ai");
-                conversion.setMessage(text);
-            }else if (type.equals(MessageType.USER.getValue())){
-                conversion.setMessage(text);
-                conversion.setMessageType("user");
-            }else {
-                log.warn("未知消息类型");
+            boolean needSave = false; // 标记是否生成了有效内容
+
+            // 1. 处理 AI 消息
+            if (message instanceof AssistantMessage am) {
+                StringBuilder stringBuilder = new StringBuilder();
+
+                // 获取普通文本
+                String text = am.getText();
+                if (StringUtils.hasText(text)) {
+                    stringBuilder.append(text);
+                }
+
+                // 获取工具调用
+                List<AssistantMessage.ToolCall> toolCalls = am.getToolCalls();
+                if (toolCalls != null && !toolCalls.isEmpty()) {
+                    if (stringBuilder.length() > 0) {
+                        stringBuilder.append("\n\n");
+                    }
+                    for (AssistantMessage.ToolCall toolCall : toolCalls) {
+                        String arguments = toolCall.arguments();
+                        if (StringUtils.hasText(arguments)) {
+                            stringBuilder.append(arguments).append("\n");
+                        }
+                    }
+                }
+                String finalContent = stringBuilder.toString();
+                if (StringUtils.hasText(finalContent)) {
+                    conversion.setMessageType("ai");
+                    conversion.setMessage(finalContent);
+                    needSave = true;
+                }
             }
-            // 插入一条消息记录
-            conversionService.save(conversion);
+            // 2. 处理用户消息
+            else if (message instanceof UserMessage) {
+                conversion.setMessageType("user");
+                conversion.setMessage(message.getText());
+                needSave = true;
+            }
+            // 其他类型跳过
+            else {
+                log.debug("跳过不需要存储的消息类型: {}", message.getMessageType());
+            }
+
+            //加入列表
+            if (needSave) {
+                batchList.add(conversion);
+            }
+        }
+
+        // 循环结束后，一次性批量插入
+        if (!batchList.isEmpty()) {
+            conversionService.saveBatch(batchList);
         }
     }
 
     /**
-     * 获取或创建会话
-     *
+     * 获取或创建消息
      * @param conversationId
      * @return
      */
     public List<Message> getOrCreateConversation(String conversationId) {
-        List<Conversion> diagrams = conversionService.getBaseMapper().selectList(new QueryWrapper<>(Conversion.class).eq("diagramId", conversationId));
-        // 会话不为空，代表会话存在
+        List<Conversion> conversions = conversionService.getBaseMapper().selectList(
+                new QueryWrapper<>(Conversion.class)
+                        .eq("diagramId", conversationId)
+                        .orderByAsc("id")
+        );
         List<Message> messageList = new ArrayList<>();
-        if (!diagrams.isEmpty()) {
-            for (Conversion conversion : diagrams) {
-                String messageType = conversion.getMessageType();
-                String message = conversion.getMessage();
-                if (message == null){
-                    continue;
-                }
-                // 如果是用户消息
-                if ("user".equals(messageType)){
-                    messageList.add(new UserMessage(message));
-                } else if ("ai".equals(messageType)) {
-                    messageList.add(new AssistantMessage(message));
-                }else {
-                    log.warn("未知的消息类型");
+        if (conversions != null && !conversions.isEmpty()) {
+            for (Conversion conversion : conversions) {
+                String type = conversion.getMessageType();
+                String content = conversion.getMessage();
+                if (!StringUtils.hasText(content)) continue;
+
+                if ("user".equals(type)) {
+                    messageList.add(new UserMessage(content));
+                } else if ("ai".equals(type)) {
+                    messageList.add(new AssistantMessage(content));
                 }
             }
-
         }
         return messageList;
     }
 
     /**
-     * 清除指定会话的所有消息
+     * 清除消息
      * @param conversationId
      */
     @Override
-    public void clear(@NotNull String conversationId) {
+    public void clear(String conversationId) {
         try {
             Long diagramId = Long.valueOf(conversationId);
             conversionService.getBaseMapper()
