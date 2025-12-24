@@ -32,9 +32,9 @@ public class AIClientController {
      * @return
      */
     @PostMapping("/gen")
-    public String doChat(String message, String diagramId){
+    public String doChat(String message, String diagramId, String modelId){
         return ScopedValue.where(DiagramContextUtil.CONVERSATION_ID, String.valueOf(diagramId))
-                .call(() -> drawClient.doChat(message, diagramId));
+                .call(() -> drawClient.doChat(message, diagramId, modelId));
     }
 
     /**
@@ -44,12 +44,12 @@ public class AIClientController {
      * @return
      */
     @PostMapping("/stream")
-    public SseEmitter doChatStream(String message, String diagramId){
+    public SseEmitter doChatStream(String message, String diagramId, String modelId){
         SseEmitter emitter = new SseEmitter(5 * 60 * 1000L);
         // 用于收集完整的内容
         StringBuilder fullResponse = new StringBuilder();
 
-        drawClient.doChatStream(message, diagramId)
+        drawClient.doChatStream(message, diagramId, modelId)
                 .subscribe(chunk -> {
                     try{
                         fullResponse.append(chunk);

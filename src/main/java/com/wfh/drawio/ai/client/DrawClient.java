@@ -3,6 +3,7 @@ package com.wfh.drawio.ai.client;
 import cn.hutool.json.JSONUtil;
 import com.wfh.drawio.ai.advisor.MyLoggerAdvisor;
 import com.wfh.drawio.ai.chatmemory.DbBaseChatMemory;
+import com.wfh.drawio.ai.config.MultiModelFactory;
 import com.wfh.drawio.ai.model.StreamEvent;
 import com.wfh.drawio.ai.utils.DiagramContextUtil;
 import com.wfh.drawio.ai.utils.PromptUtil;
@@ -26,17 +27,29 @@ import reactor.core.publisher.Sinks;
 @Component
 public class DrawClient {
 
-    private final ChatClient chatClient;
+    private final MultiModelFactory multiModelFactory;
+
+    private final DbBaseChatMemory dbBaseChatMemory;
 
     @Value("${spring.ai.openai.chat.options.model}")
-    private String model;
+    private String defaultModelId;
 
-    public DrawClient(ChatModel openaiChatModel, DbBaseChatMemory dbBaseChatMemory){
-        // 在构造时不设置工具，避免循环依赖
-        chatClient = ChatClient.builder(openaiChatModel)
-                .defaultSystem(PromptUtil.getSystemPrompt(model, true))
+    public DrawClient(MultiModelFactory multiModelFactory, DbBaseChatMemory dbBaseChatMemory) {
+        this.multiModelFactory = multiModelFactory;
+        this.dbBaseChatMemory = dbBaseChatMemory;
+    }
+
+    /**
+     * 动态构建client
+     * @param modelId
+     * @return
+     */
+    private ChatClient createChatClient(String modelId){
+        String targetModelId = (modelId == null || modelId.isEmpty()) ? defaultModelId : modelId;
+        ChatModel chatModel = multiModelFactory.getChatModel(targetModelId);
+        return ChatClient.builder(chatModel)
+                .defaultSystem(PromptUtil.getSystemPrompt(targetModelId, true))
                 .defaultAdvisors(new MyLoggerAdvisor())
-                // 基于MySQL的对话记忆
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(dbBaseChatMemory).build())
                 .build();
     }
@@ -46,8 +59,9 @@ public class DrawClient {
      * @param message
      * @return
      */
-    public String doChat(String message, String diagramId){
-        ChatResponse chatResponse = this.chatClient
+    public String doChat(String message, String diagramId, String modelId){
+        ChatClient chatClient = createChatClient(modelId);
+        ChatResponse chatResponse = chatClient
                 .prompt()
                 .user(message)
                 // 不再手动设置工具，让Spring AI自动发现
@@ -65,11 +79,12 @@ public class DrawClient {
      * @param diagramId
      * @return
      */
-    public Flux<String> doChatStream(String message, String diagramId){
+    public Flux<String> doChatStream(String message, String diagramId, String modelId){
         // 创建旁路管道，用于接收工具层发出的日志和结果
         Sinks.Many<StreamEvent> sideChannelSink = Sinks.many().unicast().onBackpressureBuffer();
         Flux<String> toolLogFlux = sideChannelSink.asFlux()
                 .map(JSONUtil::toJsonStr);
+        ChatClient chatClient = createChatClient(modelId);
         Flux<String> aiResFlux = chatClient.prompt()
                 .user(message)
                 // 不再手动设置工具，让Spring AI自动发现
