@@ -1,7 +1,6 @@
 package com.wfh.drawio.ai.config;
 
 import lombok.Data;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
@@ -19,7 +18,7 @@ import java.util.Map;
 @ConfigurationProperties("spring.ai.custom")
 public class AiModelsProperties {
 
-    private Map<String, ModelConfig> model;
+    private Map<String, ModelConfig> models;
 
     @Data
     public static class ModelConfig{
@@ -27,6 +26,6 @@ public class AiModelsProperties {
 
         private String apiKey;
 
-        private String modelName;
+        private String model;
     }
 }

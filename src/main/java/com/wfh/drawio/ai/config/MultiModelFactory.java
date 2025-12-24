@@ -1,7 +1,5 @@
 package com.wfh.drawio.ai.config;
 
-import com.wfh.drawio.common.ErrorCode;
-import com.wfh.drawio.exception.BusinessException;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -29,30 +27,79 @@ public class MultiModelFactory {
         this.properties = properties;
     }
 
-    public ChatModel getChatModel(String modelId){
-        if (modelCache.containsKey(modelId)){
+    /**
+     * 动态构建模型
+     * @param modelId
+     * @return
+     */
+    public ChatModel getChatModel(String modelId) {
+        // 1. 先查缓存
+        if (modelCache.containsKey(modelId)) {
             return modelCache.get(modelId);
         }
-        AiModelsProperties.ModelConfig config = properties.getModel().get(modelId);
-        if (config == null){
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "未知的模型");
+        // 2. 智能查找配置
+        AiModelsProperties.ModelConfig config = findConfigByModelId(modelId);
+        if (config == null) {
+            throw new IllegalArgumentException("未找到支持模型 [" + modelId + "] 的相关配置，请检查 application.yml");
         }
-
-        // 手动构建openAiApi
+        // 3. 构建 API (复用查找到的配置中的 URL 和 Key)
         OpenAiApi openAiApi = new OpenAiApi.Builder()
-                .apiKey(config.getApiKey())
                 .baseUrl(config.getBaseUrl())
+                .apiKey(config.getApiKey())
                 .build();
+        // 4. 构建 Options
+        String actualModelName = determineModelName(modelId, config);
         OpenAiChatOptions options = OpenAiChatOptions.builder()
-                .model(config.getModelName())
+                .model(actualModelName)
                 .temperature(0.7)
                 .build();
 
+        // 5. 创建并缓存
         OpenAiChatModel chatModel = OpenAiChatModel.builder()
                 .openAiApi(openAiApi)
                 .defaultOptions(options)
                 .build();
+
         modelCache.put(modelId, chatModel);
         return chatModel;
+    }
+
+    /**
+     * 智能查找模型
+     * @param targetModelId
+     * @return
+     */
+    private AiModelsProperties.ModelConfig findConfigByModelId(String targetModelId) {
+        Map<String, AiModelsProperties.ModelConfig> models = properties.getModels();
+        // 直接 Key 匹配
+        if (models.containsKey(targetModelId)) {
+            return models.get(targetModelId);
+        }
+        // 遍历 Value 匹配
+        for (AiModelsProperties.ModelConfig config : models.values()) {
+            if (targetModelId.equals(config.getModel())) {
+                return config;
+            }
+        }
+        // 前缀/包含匹配
+        for (Map.Entry<String, AiModelsProperties.ModelConfig> entry : models.entrySet()) {
+            String key = entry.getKey();
+            if (targetModelId.toLowerCase().contains(key.toLowerCase())) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 确定最终传给 API 的模型名称
+     */
+    private String determineModelName(String reqModelId, AiModelsProperties.ModelConfig config) {
+        // 如果请求的ID在配置Map的Key里 (比如请求 "qwen")，则使用配置里的默认模型名 (比如 "qwen-max")
+        if (properties.getModels().containsKey(reqModelId)) {
+            return config.getModel();
+        }
+        // 这样可以实现一套 API Key 调用该厂商下的所有模型
+        return reqModelId;
     }
 }
