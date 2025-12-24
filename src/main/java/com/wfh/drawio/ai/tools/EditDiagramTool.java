@@ -74,15 +74,7 @@ public class EditDiagramTool {
 
             // Wrap mxCell fragments into complete drawio XML structure if needed
             if (!currentXml.trim().startsWith("<mxfile")) {
-                currentXml = "<mxfile>\n" +
-                        "<mxGraphModel dx=\"1422\" dy=\"794\" grid=\"1\" gridSize=\"10\" guides=\"1\" tooltips=\"1\" connect=\"1\" arrows=\"1\" fold=\"1\" page=\"1\" pageScale=\"1\" pageWidth=\"827\" pageHeight=\"1169\" math=\"0\" shadow=\"0\">\n" +
-                        "<root>\n" +
-                        "<mxCell id=\"0\"/>\n" +
-                        "<mxCell id=\"1\" parent=\"0\"/>\n" +
-                        currentXml + "\n" +
-                        "</root>\n" +
-                        "</mxGraphModel>\n" +
-                        "</mxfile>";
+               currentXml = DrawioXmlProcessor.wrapWithModel(currentXml);
             }
 
             // Parse JSON string to EditDiagramRequest object
@@ -113,11 +105,13 @@ public class EditDiagramTool {
 
             // 3. 操作成功后，保存新的 XML 到数据库
             // Extract mxCell elements only (similar to CreateDiagramTool behavior)
-            String savedXml = DrawioXmlProcessor.extractMxCellsOnly(result.resultXml);
+            String savedXml = result.resultXml;
             diagram.setDiagramCode(savedXml);
             diagramService.updateById(diagram);
+            // 推送给前端，完整的xml
+            DiagramContextUtil.result(savedXml);
             return ToolResult.success(
-                    savedXml,
+                    "updated",
                     "Edit operations applied successfully:\n" +
                             String.join("\n", result.appliedOperations) +
                             (result.errors.isEmpty() ? "" : "\nErrors: " + String.join(", ", result.errors))

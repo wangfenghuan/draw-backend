@@ -91,13 +91,14 @@ public class CreateDiagramTool {
             if (!xml.contains("<mxCell")) {
                 return ToolResult.error("Invalid XML content: must contain <mxCell> elements");
             }
+            String fullXml = DrawioXmlProcessor.wrapWithModel(xml);
             // 当前图表生成完毕，保存到对应的数据库表中(这里先把数据库中的图表查出来)
             Diagram diagram = diagramService.getById(diagramId);
-            diagram.setDiagramCode(xml);
+            diagram.setDiagramCode(fullXml);
             // 然后在保存
             diagramService.updateById(diagram);
             // 直接把结果推给前端渲染
-            DiagramContextUtil.result(xml);
+            DiagramContextUtil.result(fullXml);
             DiagramContextUtil.log("diagram generated");
             return ToolResult.success(xml,
                     "Diagram created successfully. " + extractMxCellCount(xml) + " cells created.");

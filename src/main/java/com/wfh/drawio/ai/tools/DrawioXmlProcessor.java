@@ -30,6 +30,33 @@ public class DrawioXmlProcessor {
     private static final Pattern MXCELL_PATTERN = Pattern.compile("<mxCell[^>]*>.*?</mxCell>", Pattern.DOTALL);
     private static final Pattern ID_PATTERN = Pattern.compile("id=\"([^\"]+)\"");
 
+
+    public static String wrapWithModel(String bodyXml) {
+        // 生成一个随机 ID 给 diagram 标签
+        String uuid = UUID.randomUUID().toString();
+
+        // 标准头部：包含 mxfile, diagram, mxGraphModel 和默认的 root 节点 (id=0, id=1)
+        // 注意：AI 提示词中明确要求不生成 id="0" 和 id="1"，所以这里必须补上
+        String header = """
+            <mxfile host="Electron" modified="2024-01-01T00:00:00.000Z" agent="5.0" etag="xi" version="21.0.0" type="device">
+              <diagram id="%s" name="Page-1">
+                <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+                  <root>
+                    <mxCell id="0"/>
+                    <mxCell id="1" parent="0"/>
+            """.formatted(uuid);
+
+        // 标准尾部
+        String footer = """
+                  </root>
+                </mxGraphModel>
+              </diagram>
+            </mxfile>
+            """;
+
+        return header + "\n" + bodyXml + "\n" + footer;
+    }
+
     /**
      * Validate and parse XML content
      */

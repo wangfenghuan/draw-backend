@@ -63,17 +63,36 @@ public class AppendDiagramTool  {
             if (!validation.valid) {
                 return ToolResult.error("XML fragment validation failed: " + validation.error);
             }
-
-            // Append to current XML
-            String appendedXml = currentXml + "\n" + xmlFragment;
+            String finalXml = "";
+            // 核心修改逻辑：判断是否是完整 XML，决定插入位置
+            if (currentXml.trim().startsWith("<mxfile")) {
+                // 如果是完整 XML，需要插入到 </root> 之前
+                int rootEndIndex = currentXml.lastIndexOf("</root>");
+                if (rootEndIndex != -1) {
+                    // 拆分：头部 + 新片段 + 尾部
+                    String beforeRootEnd = currentXml.substring(0, rootEndIndex);
+                    String afterRootEnd = currentXml.substring(rootEndIndex);
+                    finalXml = beforeRootEnd + "\n" + xmlFragment + "\n" + afterRootEnd;
+                } else {
+                    // 异常情况：有 mxfile 头但没 root 尾？直接硬追加或报错
+                    // 这里选择兜底策略：硬追加，虽然可能无效
+                    finalXml = currentXml + "\n" + xmlFragment;
+                }
+            } else {
+                // 如果数据库里存的是残缺片段（历史遗留或还没包装），直接追加
+                String tempXml = currentXml + "\n" + xmlFragment;
+                // 然后顺手把它包装成标准的
+                finalXml = DrawioXmlProcessor.wrapWithModel(tempXml);
+            }
 
             // 5. 【关键】把拼接好的结果保存到数据库中去
-            diagram.setDiagramCode(appendedXml);
+            diagram.setDiagramCode(finalXml);
             diagramService.updateById(diagram);
-
+            // 推送给前端渲染
+            DiagramContextUtil.result(finalXml);
             return ToolResult.success(
-                    appendedXml,
-                    "XML fragment appended successfully. Total cells: " + DrawioXmlProcessor.extractMxCells(appendedXml).size()
+                    "XML fragment appended successfully.",
+                    "XML fragment appended successfully. Total cells: " + DrawioXmlProcessor.extractMxCells(finalXml).size()
             );
 
         } catch (Exception e) {
