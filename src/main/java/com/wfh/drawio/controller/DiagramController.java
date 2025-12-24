@@ -1,5 +1,6 @@
 package com.wfh.drawio.controller;
 
+import cn.hutool.core.io.FileUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.wfh.drawio.annotation.AuthCheck;
 import com.wfh.drawio.common.BaseResponse;
@@ -9,20 +10,31 @@ import com.wfh.drawio.common.ResultUtils;
 import com.wfh.drawio.constant.UserConstant;
 import com.wfh.drawio.exception.BusinessException;
 import com.wfh.drawio.exception.ThrowUtils;
-import com.wfh.drawio.model.dto.diagram.DiagramAddRequest;
-import com.wfh.drawio.model.dto.diagram.DiagramEditRequest;
-import com.wfh.drawio.model.dto.diagram.DiagramQueryRequest;
-import com.wfh.drawio.model.dto.diagram.DiagramUpdateRequest;
+import com.wfh.drawio.manager.MinioManager;
+import com.wfh.drawio.model.dto.diagram.*;
 import com.wfh.drawio.model.entity.Diagram;
 import com.wfh.drawio.model.entity.User;
+import com.wfh.drawio.model.enums.FileUploadBizEnum;
 import com.wfh.drawio.model.vo.DiagramVO;
 import com.wfh.drawio.service.DiagramService;
 import com.wfh.drawio.service.UserService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.beans.BeanUtils;
+import org.springframework.util.StreamUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 
 /**
@@ -40,6 +52,97 @@ public class DiagramController {
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private MinioManager minioManager;
+
+
+    /**
+     * 上传图表到minio
+     * @param multipartFile
+     * @param diagramUploadRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/upload")
+    private BaseResponse<String> uploadDiagramUrl(@RequestPart("file") MultipartFile multipartFile, @RequestBody DiagramUploadRequest diagramUploadRequest, HttpServletRequest request){
+        String biz = diagramUploadRequest.getBiz();
+        Long diagramId = diagramUploadRequest.getDiagramId();
+        Long userId = diagramUploadRequest.getUserId();
+        if (diagramId == null || userId == null){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        FileUploadBizEnum fileUploadBizEnum = FileUploadBizEnum.getEnumByValue(biz);
+        if (fileUploadBizEnum == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        validFile(multipartFile, fileUploadBizEnum);
+        User loginUser = userService.getLoginUser(request);
+        // 文件目录：根据业务、用户来划分
+        String uuid = RandomStringUtils.randomAlphanumeric(8);
+        String filename = uuid + "-" + multipartFile.getOriginalFilename();
+        String filepath = String.format("/%s/%s/%s", fileUploadBizEnum.getValue(), loginUser.getId(), filename);
+        String fileUrl = "";
+        try {
+            // 上传文件
+            fileUrl = minioManager.putObject(filepath, multipartFile.getInputStream(), multipartFile);
+            // 更新到数据库
+            Diagram diagram = new Diagram();
+            diagram.setId(diagramId);
+            diagram.setPictureUrl(fileUrl);
+            diagramService.updateById(diagram);
+            // 返回可访问地址
+            return ResultUtils.success(fileUrl);
+        } catch (Exception e) {
+            log.error("file upload error, filepath = " + filepath, e);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "上传失败");
+        }
+    }
+
+    /**
+     * 流式代理下载接口
+     * * @param remoteUrl 远程文件地址
+     * @param fileName
+     * @param response  HttpServletResponse 对象，用于直接操作输出流
+     */
+    @GetMapping("/stream-download")
+    public void downloadRemoteFile(@RequestParam(required = false) String fileName,
+                                   @RequestParam() Long diagramId,
+                                   HttpServletResponse response, HttpServletRequest request) {
+
+        User loginUser = userService.getLoginUser(request);
+        Diagram diagram = diagramService.getById(diagramId);
+        if (diagram == null){
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "图表不存在");
+        }
+        if (!diagram.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)){
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
+        }
+        String pictureUrl = diagram.getPictureUrl();
+        diagramService.download(pictureUrl, fileName, response);
+    }
+
+    /**
+     * 校验文件
+     *
+     * @param multipartFile
+     * @param fileUploadBizEnum 业务类型
+     */
+    private void validFile(MultipartFile multipartFile, FileUploadBizEnum fileUploadBizEnum) {
+        // 文件大小
+        long fileSize = multipartFile.getSize();
+        // 文件后缀
+        String fileSuffix = FileUtil.getSuffix(multipartFile.getOriginalFilename());
+        final long ONE_M = 1024 * 1024L;
+        if (FileUploadBizEnum.USER_AVATAR.equals(fileUploadBizEnum)) {
+            if (fileSize > ONE_M) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件大小不能超过 1M");
+            }
+            if (!Arrays.asList("jpeg", "jpg", "svg", "png", "webp", "svg").contains(fileSuffix)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件类型错误");
+            }
+        }
+    }
 
     // region 增删改查
 

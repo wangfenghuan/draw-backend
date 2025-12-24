@@ -30,6 +30,16 @@ public class Diagram {
     private String diagramCode;
 
     /**
+     * 图表名称
+     */
+    private String name;
+
+    /**
+     * 图片url
+     */
+    private String pictureUrl;
+
+    /**
      * 创建时间
      */
     private Date createTime;
@@ -38,10 +48,7 @@ public class Diagram {
      * 更新时间
      */
     private Date updateTime;
-    /**
-     * 图表名称
-     */
-    private String name;
+
 
     /**
      * 是否删除（0未删除，1删除）

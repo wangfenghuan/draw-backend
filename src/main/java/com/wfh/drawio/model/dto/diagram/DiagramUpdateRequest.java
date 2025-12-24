@@ -27,6 +27,11 @@ public class DiagramUpdateRequest implements Serializable {
      */
     private String diagramCode;
 
+    /**
+     * 图片url
+     */
+    private String pictureUrl;
+
 
     private static final long serialVersionUID = 1L;
 }

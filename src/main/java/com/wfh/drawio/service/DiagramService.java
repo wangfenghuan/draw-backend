@@ -7,6 +7,7 @@ import com.wfh.drawio.model.dto.diagram.DiagramQueryRequest;
 import com.wfh.drawio.model.entity.Diagram;
 import com.wfh.drawio.model.vo.DiagramVO;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 
 /**
@@ -15,6 +16,15 @@ import jakarta.servlet.http.HttpServletRequest;
  * @author fenghuanwang
  */
 public interface DiagramService extends IService<Diagram> {
+
+
+    /**
+     * 下载diagram
+     * @param remoteUrl
+     * @param fileName
+     * @param response
+     */
+    void download(String remoteUrl, String fileName, HttpServletResponse response);
 
     /**
      * 校验数据

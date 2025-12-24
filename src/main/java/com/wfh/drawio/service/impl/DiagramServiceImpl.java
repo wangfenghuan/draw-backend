@@ -16,11 +16,19 @@ import com.wfh.drawio.service.UserService;
 
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StreamUtils;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -34,6 +42,86 @@ public class DiagramServiceImpl extends ServiceImpl<DiagramMapper, Diagram> impl
 
     @Resource
     private UserService userService;
+
+
+    /**
+     * 下载文件
+     * @param remoteUrl
+     * @param fileName
+     * @param response
+     */
+    @Override
+    public void download(String remoteUrl, String fileName, HttpServletResponse response) {
+        HttpURLConnection connection = null;
+        InputStream remoteInputStream = null;
+
+        try {
+            // 1. 建立连接
+            URL url = new URL(remoteUrl);
+            connection = (HttpURLConnection) url.openConnection();
+            // 关键：设置超时，避免远程服务挂死导致本地线程池耗尽
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(60000);
+            // 2. 检查远程状态
+            int responseCode = connection.getResponseCode();
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                // 如果远程文件不存在或报错，直接返回错误给前端
+                response.sendError(HttpServletResponse.SC_BAD_REQUEST, "远程文件无法获取，状态码: " + responseCode);
+                return;
+            }
+            // 3. 获取远程文件元数据
+            String contentType = connection.getContentType();
+            long contentLength = connection.getContentLengthLong();
+            String finalFileName = (fileName != null && !fileName.isEmpty()) ? fileName : extractFileNameFromUrl(remoteUrl);
+            String encodedFileName = URLEncoder.encode(finalFileName, StandardCharsets.UTF_8).replaceAll("\\+", "%20");
+            response.reset();
+            response.setContentType(contentType != null ? contentType : "application/octet-stream");
+            if (contentLength > 0) {
+                response.setContentLengthLong(contentLength);
+            }
+            // 设为附件下载模式
+            response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + encodedFileName);
+            // 核心：流对接 (输入流 -> 输出流)
+            remoteInputStream = connection.getInputStream();
+            StreamUtils.copy(remoteInputStream, response.getOutputStream());
+            response.getOutputStream().flush();
+
+        } catch (Exception e) {
+            // 处理下载过程中的网络中断等异常
+            // 注意：如果响应头已经发送，这里再 sendError 可能无效，通常只记录日志
+            System.err.println("下载文件出错: " + e.getMessage());
+        } finally {
+            // 8. 资源清理
+            if (remoteInputStream != null) {
+                try {
+                    remoteInputStream.close();
+                } catch (IOException e) {
+                    // ignore
+                }
+            }
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+
+
+    /**
+     * 从URL截取文件名
+     * @param url
+     * @return
+     */
+    private String extractFileNameFromUrl(String url) {
+        try {
+            // 简单的截取逻辑，实际场景可能需要处理 URL 参数 (?ver=1.0)
+            String path = new URL(url).getPath();
+            String name = path.substring(path.lastIndexOf('/') + 1);
+            return name.isEmpty() ? "unknown_file" : name;
+        } catch (Exception e) {
+            return "download_file";
+        }
+    }
 
     /**
      * 校验数据
