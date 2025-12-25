@@ -16,12 +16,12 @@ import com.wfh.drawio.model.entity.Diagram;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.enums.FileUploadBizEnum;
 import com.wfh.drawio.model.vo.DiagramVO;
-import com.wfh.drawio.service.DiagramService;
-import com.wfh.drawio.service.UserService;
+import com.wfh.drawio.service.*;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.util.StreamUtils;
@@ -65,7 +65,7 @@ public class DiagramController {
      * @return
      */
     @PostMapping("/upload")
-    private BaseResponse<String> uploadDiagramUrl(@RequestPart("file") MultipartFile multipartFile, @RequestBody DiagramUploadRequest diagramUploadRequest, HttpServletRequest request){
+    private BaseResponse<String> uploadDiagram(@RequestPart("file") MultipartFile multipartFile, @RequestBody DiagramUploadRequest diagramUploadRequest, HttpServletRequest request){
         String biz = diagramUploadRequest.getBiz();
         Long diagramId = diagramUploadRequest.getDiagramId();
         Long userId = diagramUploadRequest.getUserId();
@@ -83,13 +83,19 @@ public class DiagramController {
         String filename = uuid + "-" + multipartFile.getOriginalFilename();
         String filepath = String.format("/%s/%s/%s", fileUploadBizEnum.getValue(), loginUser.getId(), filename);
         String fileUrl = "";
+        String extension = FilenameUtils.getExtension(filename);
         try {
             // 上传文件
             fileUrl = minioManager.putObject(filepath, multipartFile.getInputStream(), multipartFile);
+            // 根据文件不同类型插入到不同字段中
             // 更新到数据库
             Diagram diagram = new Diagram();
             diagram.setId(diagramId);
-            diagram.setPictureUrl(fileUrl);
+            if (extension.equals("SVG")){
+                diagram.setSvgUrl(fileUrl);
+            } else if (extension.equals("PNG")) {
+                diagram.setPictureUrl(fileUrl);
+            }
             diagramService.updateById(diagram);
             // 返回可访问地址
             return ResultUtils.success(fileUrl);
@@ -107,6 +113,7 @@ public class DiagramController {
      */
     @GetMapping("/stream-download")
     public void downloadRemoteFile(@RequestParam(required = false) String fileName,
+                                   @RequestParam() String type,
                                    @RequestParam() Long diagramId,
                                    HttpServletResponse response, HttpServletRequest request) {
 
@@ -118,8 +125,24 @@ public class DiagramController {
         if (!diagram.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)){
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
-        String pictureUrl = diagram.getPictureUrl();
-        diagramService.download(pictureUrl, fileName, response);
+        Long id = diagram.getId();
+        StrategyContext strategyContext = new StrategyContext();
+        switch (type){
+            case "SVG":
+                strategyContext.setDownloadStrategy(new SvgDownloadStrategy());
+                strategyContext.execDownload(id, fileName, response);
+                break;
+            case "PNG":
+                strategyContext.setDownloadStrategy(new PngDownloadStrategy());
+                strategyContext.execDownload(id, fileName, response);
+                break;
+            case "XML":
+                strategyContext.setDownloadStrategy(new XmlDownloadStrategy());
+                strategyContext.execDownload(id, fileName, response);
+                break;
+            default:
+                break;
+        }
     }
 
     /**

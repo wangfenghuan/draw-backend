@@ -5,11 +5,11 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.wfh.drawio.common.ErrorCode;
+import com.wfh.drawio.exception.BusinessException;
 import com.wfh.drawio.exception.ThrowUtils;
 import com.wfh.drawio.model.dto.diagram.DiagramQueryRequest;
 import com.wfh.drawio.model.entity.Diagram;
 import com.wfh.drawio.mapper.DiagramMapper;
-import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.vo.DiagramVO;
 import com.wfh.drawio.service.DiagramService;
 import com.wfh.drawio.service.UserService;
@@ -87,9 +87,7 @@ public class DiagramServiceImpl extends ServiceImpl<DiagramMapper, Diagram> impl
             response.getOutputStream().flush();
 
         } catch (Exception e) {
-            // 处理下载过程中的网络中断等异常
-            // 注意：如果响应头已经发送，这里再 sendError 可能无效，通常只记录日志
-            System.err.println("下载文件出错: " + e.getMessage());
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "下载错误");
         } finally {
             // 8. 资源清理
             if (remoteInputStream != null) {

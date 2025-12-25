@@ -40,6 +40,11 @@ public class Diagram {
     private String pictureUrl;
 
     /**
+     * 矢量图url
+     */
+    private String svgUrl;
+
+    /**
      * 创建时间
      */
     private Date createTime;

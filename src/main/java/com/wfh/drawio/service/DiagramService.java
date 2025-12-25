@@ -17,9 +17,8 @@ import jakarta.servlet.http.HttpServletResponse;
  */
 public interface DiagramService extends IService<Diagram> {
 
-
     /**
-     * 下载diagram
+     * 下载
      * @param remoteUrl
      * @param fileName
      * @param response
