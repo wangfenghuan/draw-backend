@@ -13,12 +13,12 @@ import reactor.core.publisher.Sinks;
 public class DiagramContextUtil {
 
     /**
-     * 传递图表id（会话id）
+     * 当前绑定的会话ID
      */
-    public static final ScopedValue<String> CONVERSATION_ID = ScopedValue.newInstance();
+    private static final ThreadLocal<String> CURRENT_CONVERSATION_ID = new ThreadLocal<>();
 
     /**
-     * 用于存放“旁路管道”
+     * 用于存放"旁路管道"
      */
     public static final ThreadLocal<Sinks.Many<StreamEvent>> EVENT_SINK = new ThreadLocal<>();
 
@@ -31,6 +31,14 @@ public class DiagramContextUtil {
     }
 
     /**
+     * 绑定会话ID到作用域值
+     * @param conversationId
+     */
+    public static void bindConversationId(String conversationId){
+        CURRENT_CONVERSATION_ID.set(conversationId);
+    }
+
+    /**
      * 发送工具日志，给前端展示工具调用过程
      * @param message
      */
@@ -39,7 +47,7 @@ public class DiagramContextUtil {
         if (sink != null){
             sink.tryEmitNext(StreamEvent.builder()
                     .type("too_call")
-                            .content(message)
+                    .content(message)
                     .build());
         }
     }
@@ -52,8 +60,8 @@ public class DiagramContextUtil {
         Sinks.Many<StreamEvent> sink = EVENT_SINK.get();
         if (sink != null){
             sink.tryEmitNext(StreamEvent.builder()
-                            .type("tool_call_result")
-                            .content(data)
+                    .type("tool_call_result")
+                    .content(data)
                     .build());
         }
     }
@@ -63,6 +71,7 @@ public class DiagramContextUtil {
      */
     public static void clear() {
         EVENT_SINK.remove();
+        CURRENT_CONVERSATION_ID.remove();
     }
 
     /**
@@ -70,7 +79,7 @@ public class DiagramContextUtil {
      * @return
      */
     public static String getConversationId() {
-        return CONVERSATION_ID.isBound() ? CONVERSATION_ID.get() : null;
+        return CURRENT_CONVERSATION_ID.get();
     }
 
 }

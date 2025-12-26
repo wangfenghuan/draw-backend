@@ -35,16 +35,16 @@ public class AppendDiagramTool  {
         3. Complete the remaining mxCell elements
         4. If still truncated, call append_diagram again with the next fragment
         """)
-    public ToolResult<DiagramSchemas.AppendDiagramRequest, String> execute(
+    public ToolResult<DiagramSchemas.AppendDiagramRequest, String> appendDiagram(
             @ToolParam(description = "The XML fragment to append") DiagramSchemas.AppendDiagramRequest request
     ) {
         try {
             // 判断是否绑定了作用域
-            if (!DiagramContextUtil.CONVERSATION_ID.isBound()){
-                return ToolResult.error("System Error: ScopedValue noe bound");
+            String diagramId = DiagramContextUtil.getConversationId();
+            if (diagramId == null){
+                return ToolResult.error("System Error: ThreadLocal not bound");
             }
             // 当前的图表ID
-            String diagramId = DiagramContextUtil.CONVERSATION_ID.get();
             // 4. 【关键】在后端内部获取 currentXml
             Diagram diagram = diagramService.getById(diagramId);
             String currentXml = diagram.getDiagramCode();

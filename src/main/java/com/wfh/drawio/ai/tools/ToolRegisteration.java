@@ -23,4 +23,18 @@ import org.springframework.context.annotation.Configuration;
 @Deprecated
 public class ToolRegisteration {
     // 该类已废弃，不再使用，仅作为兼容性保留
+
+    @Resource
+    private CreateDiagramTool createDiagramTool;
+
+    @Resource
+    private AppendDiagramTool appendDiagramTool;
+
+    @Resource
+    private EditDiagramTool editDiagramTool;
+
+    @Bean
+    public ToolCallback[] toolCallbacks(){
+        return ToolCallbacks.from(createDiagramTool, appendDiagramTool, editDiagramTool);
+    }
 }

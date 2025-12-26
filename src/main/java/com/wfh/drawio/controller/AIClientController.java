@@ -33,8 +33,14 @@ public class AIClientController {
      */
     @PostMapping("/gen")
     public String doChat(String message, String diagramId, String modelId){
-        return ScopedValue.where(DiagramContextUtil.CONVERSATION_ID, String.valueOf(diagramId))
-                .call(() -> drawClient.doChat(message, diagramId, modelId));
+        // 绑定会话ID到ThreadLocal
+        DiagramContextUtil.bindConversationId(diagramId);
+        try {
+            return drawClient.doChat(message, diagramId, modelId);
+        } finally {
+            // 确保清理ThreadLocal
+            DiagramContextUtil.clear();
+        }
     }
 
     /**
@@ -46,10 +52,16 @@ public class AIClientController {
     @PostMapping("/stream")
     public SseEmitter doChatStream(String message, String diagramId, String modelId){
         SseEmitter emitter = new SseEmitter(5 * 60 * 1000L);
-        // 用于收集完整的内容
         StringBuilder fullResponse = new StringBuilder();
 
+        // 1. 【修复】必须先在主线程绑定，否则 contextCapture 抓不到值
+        DiagramContextUtil.bindConversationId(diagramId);
+        // 如果你需要日志流，这里应该也要绑定 Sink，否则 Tool 里 log 会失效
+        // DiagramContextUtil.bindSink(XXX);
+
         drawClient.doChatStream(message, diagramId, modelId)
+                // 2. 【关键】捕获当前线程的上下文（ThreadLocal），并在后续 Reactor 线程中自动恢复
+                .contextCapture()
                 .subscribe(chunk -> {
                     try{
                         fullResponse.append(chunk);
@@ -58,16 +70,20 @@ public class AIClientController {
                         emitter.completeWithError(e);
                     }
                 }, error -> {
+                    log.error("流式生成异常", error);
                     try{
-                        emitter.send(SseEmitter.event().name("error").data("生成失败"));
+                        emitter.send(SseEmitter.event().name("error").data("生成失败: " + error.getMessage()));
                     }catch (Exception e){
                         emitter.completeWithError(e);
                     }
-                        }, () -> {
+                    // 出现异常也要清理资源（虽然 ThreadLocalAccessor 会自动 reset，但主线程的要手动清）
+                    DiagramContextUtil.clear();
+                }, () -> {
                     // 流结束
-                            emitter.complete();
-                        }
-                );
+                    emitter.complete();
+                    // 清理主线程资源
+                    DiagramContextUtil.clear();
+                });
 
         return emitter;
     }

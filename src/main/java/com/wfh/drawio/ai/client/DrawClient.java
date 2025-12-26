@@ -5,6 +5,9 @@ import com.wfh.drawio.ai.advisor.MyLoggerAdvisor;
 import com.wfh.drawio.ai.chatmemory.DbBaseChatMemory;
 import com.wfh.drawio.ai.config.MultiModelFactory;
 import com.wfh.drawio.ai.model.StreamEvent;
+import com.wfh.drawio.ai.tools.AppendDiagramTool;
+import com.wfh.drawio.ai.tools.CreateDiagramTool;
+import com.wfh.drawio.ai.tools.EditDiagramTool;
 import com.wfh.drawio.ai.utils.DiagramContextUtil;
 import com.wfh.drawio.ai.utils.PromptUtil;
 import org.springframework.ai.chat.client.ChatClient;
@@ -31,12 +34,22 @@ public class DrawClient {
 
     private final DbBaseChatMemory dbBaseChatMemory;
 
+    private final CreateDiagramTool createDiagramTool;
+    private final EditDiagramTool editDiagramTool;
+    private final AppendDiagramTool appendDiagramTool;
+
     @Value("${spring.ai.openai.chat.options.model}")
     private String defaultModelId;
 
-    public DrawClient(MultiModelFactory multiModelFactory, DbBaseChatMemory dbBaseChatMemory) {
+    public DrawClient(MultiModelFactory multiModelFactory, DbBaseChatMemory dbBaseChatMemory,
+                      CreateDiagramTool createDiagramTool,
+                      EditDiagramTool editDiagramTool,
+                      AppendDiagramTool appendDiagramTool) {
         this.multiModelFactory = multiModelFactory;
         this.dbBaseChatMemory = dbBaseChatMemory;
+        this.createDiagramTool = createDiagramTool;
+        this.editDiagramTool = editDiagramTool;
+        this.appendDiagramTool = appendDiagramTool;
     }
 
     /**
@@ -48,6 +61,9 @@ public class DrawClient {
         String targetModelId = (modelId == null || modelId.isEmpty()) ? defaultModelId : modelId;
         ChatModel chatModel = multiModelFactory.getChatModel(targetModelId);
         return ChatClient.builder(chatModel)
+                .defaultTools(createDiagramTool)
+                .defaultTools(editDiagramTool)
+                .defaultTools(appendDiagramTool)
                 .defaultSystem(PromptUtil.getSystemPrompt(targetModelId, true))
                 .defaultAdvisors(new MyLoggerAdvisor())
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(dbBaseChatMemory).build())
@@ -95,6 +111,7 @@ public class DrawClient {
                         .type("text")
                         .content(text)
                         .build()))
+                .contextCapture()
                 // 当ai流结束的时候关闭旁路管道
                 .doOnTerminate(sideChannelSink::tryEmitComplete);
 
@@ -102,8 +119,9 @@ public class DrawClient {
         // 合并流+绑定上下文
         return  Flux.merge(toolLogFlux, aiResFlux)
                 .doOnSubscribe(subscription -> {
-                    // 开始请求的时候把sink和diagramId放入ThreadLocal
+                    // 开始请求的时候把sink和diagramId放入ThreadLocal和ScopedValue
                     DiagramContextUtil.bindSink(sideChannelSink);
+                    DiagramContextUtil.bindConversationId(diagramId);
                 })
                 .doFinally(signalType -> {
                     DiagramContextUtil.clear();

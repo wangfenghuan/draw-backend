@@ -1,6 +1,5 @@
 package com.wfh.drawio.ai.tools;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.wfh.drawio.ai.utils.DiagramContextUtil;
 import com.wfh.drawio.model.entity.Diagram;
 import com.wfh.drawio.service.DiagramService;
@@ -49,61 +48,91 @@ public class CreateDiagramTool {
         - For AWS diagrams, use AWS 2025 icons.
         - For animated connectors, add "flowAnimation=1" to edge style.
         """)
-    public ToolResult<DiagramSchemas.CreateDiagramRequest, String> execute(
+    public ToolResult<DiagramSchemas.CreateDiagramRequest, String> displayDiagram(
             @ToolParam(description = "The request object containing the generated XML string with mxCell elements")
             DiagramSchemas.CreateDiagramRequest request
     ) {
+        log.info("=== CreateDiagramTool.execute() 开始执行 ===");
         try {
             // 旁路日志
             DiagramContextUtil.log("[display_diagram]创建图表:");
+            log.info("[display_diagram]创建图表开始");
+
             // 判断是否绑定了作用域
-            if (!DiagramContextUtil.CONVERSATION_ID.isBound()){
-                return ToolResult.error("System Error: ScopedValue noe bound");
+            String diagramId = DiagramContextUtil.getConversationId();
+            if (diagramId == null){
+                log.error("错误: ThreadLocal CONVERSATION_ID 未绑定");
+                return ToolResult.error("System Error: ThreadLocal not bound");
             }
             // 当前的图表ID
-            String diagramId = DiagramContextUtil.CONVERSATION_ID.get();
+            log.info("获取到 diagramId: {}", diagramId);
 
             String xml = request.getXml();
+            log.info("接收到 XML 长度: {}", xml == null ? "null" : xml.length());
+            log.debug("XML 内容: {}", xml);
 
             // 1. 基础防错校验
             if (xml == null || xml.trim().isEmpty()) {
+                log.error("错误: XML 内容为空");
                 return ToolResult.error("Invalid XML content: empty");
             }
 
             // 2. 检查 AI 是否混淆了工具 (使用了 Edit 的指令)
             if (xml.contains("UPDATE") || xml.contains("cell_id") || xml.contains("operations")) {
+                log.error("错误: XML 包含编辑操作标记");
                 return ToolResult.error("Invalid XML: contains edit operation markers. Did you mean to use edit_diagram?");
             }
 
             // 3. 校验 XML 结构
             // 在校验时手动包一层 <root>
             String wrappedXmlForValidation = "<root>" + xml + "</root>";
+            log.info("开始验证 XML 结构...");
 
             DrawioXmlProcessor.ValidationResult validation = DrawioXmlProcessor.validateAndParseXml(wrappedXmlForValidation);
 
             if (!validation.valid) {
+                log.error("错误: XML 验证失败 - {}", validation.error);
                 return ToolResult.error("XML validation failed: " + validation.error);
             }
+            log.info("XML 验证通过");
 
             // 4. 检查是否包含了不该有的 Wrapper
             // 如果 AI 还是生成了 <mxGraphModel>，我们可以在这里做一些清洗，或者报错
             // 这里做一个简单的检查：确保至少包含 <mxCell
             if (!xml.contains("<mxCell")) {
+                log.error("错误: XML 中不包含 <mxCell> 元素");
                 return ToolResult.error("Invalid XML content: must contain <mxCell> elements");
             }
+            log.info("开始包装 XML...");
             String fullXml = DrawioXmlProcessor.wrapWithModel(xml);
+            log.info("XML 包装完成，长度: {}", fullXml.length());
+
             // 当前图表生成完毕，保存到对应的数据库表中(这里先把数据库中的图表查出来)
+            log.info("开始查询数据库，diagramId: {}", diagramId);
             Diagram diagram = diagramService.getById(diagramId);
+            log.info("查询图表记录: diagramId={}, 结果={}", diagramId, diagram == null ? "NULL" : "找到");
+            if (diagram == null) {
+                log.error("错误: 数据库中未找到 diagramId={} 的记录", diagramId);
+                return ToolResult.error("Diagram not found: " + diagramId);
+            }
+
+            log.info("开始更新 diagramCode...");
             diagram.setDiagramCode(fullXml);
-            // 然后在保存
             diagramService.updateById(diagram);
+            log.info("数据库更新完成");
+
             // 直接把结果推给前端渲染
+            log.info("推送结果到前端...");
             DiagramContextUtil.result(fullXml);
             DiagramContextUtil.log("diagram generated");
+
+            log.info("=== CreateDiagramTool.execute() 执行完成 ===");
             return ToolResult.success(xml,
                     "Diagram created successfully. " + extractMxCellCount(xml) + " cells created.");
 
         } catch (Exception e) {
+            log.error("执行异常: ", e);
+            log.error("异常详情: {}", e.getMessage());
             return ToolResult.error("Failed to create diagram: " + e.getMessage());
         }
     }

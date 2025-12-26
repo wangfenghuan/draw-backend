@@ -58,23 +58,23 @@ public class EditDiagramTool {
           ]
         }
         """)
-    public ToolResult<DiagramSchemas.EditDiagramRequest, String> execute(
+    public ToolResult<DiagramSchemas.EditDiagramRequest, String> editDiagram(
             @ToolParam(description = "JSON string containing the list of operations to perform on the diagram")
             String requestJson
     ) {
         ObjectMapper objectMapper = new ObjectMapper();
         try {
             // 判断是否绑定了作用域
-            if (!DiagramContextUtil.CONVERSATION_ID.isBound()){
-                return ToolResult.error("System Error: ScopedValue noe bound");
+            String diagramId = DiagramContextUtil.getConversationId();
+            if (diagramId == null){
+                return ToolResult.error("System Error: ThreadLocal not bound");
             }
-            String diagramId = DiagramContextUtil.CONVERSATION_ID.get();
             Diagram diagram = diagramService.getById(diagramId);
             String currentXml = diagram.getDiagramCode();
 
             // Wrap mxCell fragments into complete drawio XML structure if needed
             if (!currentXml.trim().startsWith("<mxfile")) {
-               currentXml = DrawioXmlProcessor.wrapWithModel(currentXml);
+                currentXml = DrawioXmlProcessor.wrapWithModel(currentXml);
             }
 
             // Parse JSON string to EditDiagramRequest object
