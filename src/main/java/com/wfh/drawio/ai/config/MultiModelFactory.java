@@ -65,6 +65,31 @@ public class MultiModelFactory {
     }
 
     /**
+     * 获取自定义的chatmodel
+     *
+     * @param modelId
+     * @param apiKey
+     * @param baseUrl
+     * @return
+     */
+    public ChatModel getCustomModel(String modelId, String apiKey, String baseUrl) {
+        // 构建API
+        OpenAiApi openAiApi = new OpenAiApi.Builder()
+                .apiKey(apiKey)
+                .baseUrl(baseUrl)
+                .build();
+        // 构建options
+        OpenAiChatOptions openAiChatOptions = OpenAiChatOptions.builder()
+                .model(modelId)
+                .temperature(0.7)
+                .build();
+        return OpenAiChatModel.builder()
+                .defaultOptions(openAiChatOptions)
+                .openAiApi(openAiApi)
+                .build();
+    }
+
+    /**
      * 智能查找模型
      * @param targetModelId
      * @return

@@ -31,14 +31,12 @@ public class XmlDownloadStrategy implements DownloadStrategy{
             byte[] bytes = diagramCode.getBytes(StandardCharsets.UTF_8);
             // 重置响应
             response.reset();
-
             response.setContentType("application/octet-stream");
             response.setContentLengthLong(bytes.length);
             // 设置文件名
-            String encodedFileName = URLEncoder.encode(diagram.getName(), StandardCharsets.UTF_8);
+            String encodedFileName = URLEncoder.encode(diagram.getName() + ".drawio", StandardCharsets.UTF_8);
             response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + encodedFileName);
 
-            // String不需要 InputStream，直接 write 字节数组即可
             response.getOutputStream().write(bytes);
             response.getOutputStream().flush();
         } catch (Exception e) {
