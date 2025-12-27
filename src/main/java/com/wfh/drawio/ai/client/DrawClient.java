@@ -96,35 +96,29 @@ public class DrawClient {
      * @return
      */
     public Flux<String> doChatStream(String message, String diagramId, String modelId){
-        // 创建旁路管道，用于接收工具层发出的日志和结果
+        // 创建旁路管道
         Sinks.Many<StreamEvent> sideChannelSink = Sinks.many().unicast().onBackpressureBuffer();
-        Flux<String> toolLogFlux = sideChannelSink.asFlux()
-                .map(JSONUtil::toJsonStr);
+
+        Flux<String> toolLogFlux = sideChannelSink.asFlux().map(JSONUtil::toJsonStr);
+
         ChatClient chatClient = createChatClient(modelId);
+
         Flux<String> aiResFlux = chatClient.prompt()
                 .user(message)
-                // 不再手动设置工具，让Spring AI自动发现
                 .advisors(advisorSpec -> advisorSpec.param(ChatMemory.CONVERSATION_ID, diagramId))
                 .stream()
                 .content()
                 .map(text -> JSONUtil.toJsonStr(StreamEvent.builder()
                         .type("text")
                         .content(text)
-                        .build()))
-                .contextCapture()
-                // 当ai流结束的时候关闭旁路管道
-                .doOnTerminate(sideChannelSink::tryEmitComplete);
-
-
-        // 合并流+绑定上下文
-        return  Flux.merge(toolLogFlux, aiResFlux)
-                .doOnSubscribe(subscription -> {
-                    // 开始请求的时候把sink和diagramId放入ThreadLocal和ScopedValue
-                    DiagramContextUtil.bindSink(sideChannelSink);
-                    DiagramContextUtil.bindConversationId(diagramId);
-                })
-                .doFinally(signalType -> {
-                    DiagramContextUtil.clear();
-                });
+                        .build()));
+        return Flux.merge(toolLogFlux, aiResFlux)
+                .doOnTerminate(sideChannelSink::tryEmitComplete)
+                // 【核心修复】：将 sink 和 diagramId 写入 Reactor Context
+                // Accessor 会自动将其搬运到 Tool 执行线程的 ThreadLocal
+                .contextWrite(ctx -> ctx
+                        .put(DiagramContextUtil.KEY_SINK, sideChannelSink)
+                        .put(DiagramContextUtil.KEY_CONVERSATION_ID, diagramId)
+                );
     }
 }

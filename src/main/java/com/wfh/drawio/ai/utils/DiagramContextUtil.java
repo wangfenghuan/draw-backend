@@ -12,6 +12,10 @@ import reactor.core.publisher.Sinks;
  */
 public class DiagramContextUtil {
 
+
+    public static final String KEY_SINK = "CTX_EVENT_SINK";
+    public static final String KEY_CONVERSATION_ID = "CTX_CONVERSATION_ID";
+
     /**
      * 当前绑定的会话ID
      */
@@ -80,6 +84,10 @@ public class DiagramContextUtil {
      */
     public static String getConversationId() {
         return CURRENT_CONVERSATION_ID.get();
+    }
+
+    public static Sinks.Many<StreamEvent> getSink() {
+        return EVENT_SINK.get();
     }
 
 }
