@@ -1,5 +1,10 @@
 package com.wfh.drawio.ws.handler;
 
+import com.wfh.drawio.mapper.RoomSnapshotsMapper;
+import com.wfh.drawio.mapper.RoomUpdatesMapper;
+import com.wfh.drawio.model.entity.RoomSnapshots;
+import com.wfh.drawio.model.entity.RoomUpdates;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
@@ -37,6 +42,12 @@ public class YjsHandler extends BinaryWebSocketHandler {
      */
     private final Map<String, List<byte[]>> roomHistory = new ConcurrentHashMap<>();
 
+    @Resource
+    private RoomSnapshotsMapper roomSnapshotsMapper;
+
+    @Resource
+    private RoomUpdatesMapper roomUpdatesMapper;
+
     /**
      * 连接建立之后
      * @param session
@@ -49,14 +60,28 @@ public class YjsHandler extends BinaryWebSocketHandler {
         // todo 校验用户权限
         // 加入房间管理
         roomSession.computeIfAbsent(roomName, k-> new CopyOnWriteArraySet<>()).add(session);
-        log.info("用户加入房间: {}, Session: {}", roomName, session.getId());
-        // 新用户连接的时候，发送该房间的历史数据
-        List<byte[]> history = roomHistory.get(roomName);
-        if (history != null && !history.isEmpty()){
-            for (byte[] bytes : history) {
-                session.sendMessage(new BinaryMessage(bytes));
+
+        // 从数据库重建历史
+        RoomSnapshots roomSnapshots = roomSnapshotsMapper.selectLatestByRoom(roomName);
+        long lastUpdatedId = 0;
+        // 如果存在快照，先发送快照数据
+        if (roomSnapshots != null){
+            if (roomSnapshots.getSnapshotData() != null){
+                session.sendMessage(new BinaryMessage(roomSnapshots.getSnapshotData()));
+            }
+            // 记录快照截止到的id，后面只查询比这个id更晚的增量
+            lastUpdatedId = roomSnapshots.getLastUpdateId();
+        }
+        // 获取快照之后的增量数据
+        List<RoomUpdates> roomUpdates = roomUpdatesMapper.selectByRoomAndIdAfter(roomName, lastUpdatedId);
+        // 逐条发送增量
+        if (roomUpdates != null){
+            for (RoomUpdates roomUpdate : roomUpdates) {
+                session.sendMessage(new BinaryMessage(roomUpdate.getUpdateData()));
             }
         }
+        log.info("用户加入，加载了 {} 个快照和 {} 条增量", roomSnapshots != null ? 1 : 0, roomUpdates.size());
+
     }
 
     /**
