@@ -13,6 +13,7 @@ import com.wfh.drawio.exception.ThrowUtils;
 import com.wfh.drawio.manager.MinioManager;
 import com.wfh.drawio.model.dto.diagram.*;
 import com.wfh.drawio.model.entity.Diagram;
+import com.wfh.drawio.model.entity.RoomSnapshots;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.enums.FileUploadBizEnum;
 import com.wfh.drawio.model.vo.DiagramVO;
@@ -56,13 +57,41 @@ public class DiagramController {
     @Resource
     private MinioManager minioManager;
 
+    @Resource
+    private RoomSnapshotsService snapshotsService;
+
+    @Resource
+    private RoomUpdatesService updatesService;
+
     /**
-     * 1. 检查是否有权上传 (抢锁)
-     * GET /api/snapshot/check-lock/room-101
+     * 检查是否有上传权限，枪锁
+     * @param roomId
+     * @return
      */
-    @GetMapping("/check-lock/{roomName}")
-    public boolean checkLock(@PathVariable String roomName) {
-        return diagramService.tryAcquireLock(roomName);
+    @GetMapping("/check-lock/{roomId}")
+    public boolean checkLock(@PathVariable Long roomId) {
+        return diagramService.tryAcquireLock(String.valueOf(roomId));
+    }
+
+    /**
+     * 上传图表快照
+     * @param roomId
+     * @param snampshotData
+     * @return
+     */
+    @PostMapping("/uploadSnapshot/{roomId}")
+    public BaseResponse<Boolean> uploadSnapshot(@PathVariable Long roomId, @RequestBody byte[] snampshotData){
+        RoomSnapshots byId = snapshotsService.getById(roomId);
+        if (byId == null){
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "房间不存在");
+        }
+        byId.setLastUpdateId(0L);
+        byId.setSnapshotData(snampshotData);
+        // 更新数据库
+        boolean update = snapshotsService.updateById(byId);
+        // 异步触发清理任务
+        updatesService.cleanOldUpdates(roomId);
+        return ResultUtils.success(update);
     }
 
 

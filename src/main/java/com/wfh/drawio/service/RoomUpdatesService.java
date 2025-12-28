@@ -10,4 +10,10 @@ import com.baomidou.mybatisplus.extension.service.IService;
 */
 public interface RoomUpdatesService extends IService<RoomUpdates> {
 
+    /**
+     * 清理旧的增量数据
+     * @param roomId
+     */
+    void cleanOldUpdates(Long roomId);
+
 }

@@ -6,6 +6,7 @@ import com.wfh.drawio.model.entity.RoomUpdates;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,6 +20,7 @@ import java.util.concurrent.*;
  * @description:
  */
 @Slf4j
+@Service
 public class RoomUpdateBatchService extends ServiceImpl<RoomUpdatesMapper, RoomUpdates> {
 
     /**
