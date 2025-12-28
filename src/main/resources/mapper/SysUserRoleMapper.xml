@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wfh.drawio.mapper.SysUserRoleMapper">
+
+    <resultMap id="BaseResultMap" type="com.wfh.drawio.model.entity.SysUserRole">
+            <id property="id" column="Id" />
+            <id property="roleId" column="roleId" />
+            <result property="isDelete" column="isDelete" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        Id,roleId,isDelete
+    </sql>
+</mapper>

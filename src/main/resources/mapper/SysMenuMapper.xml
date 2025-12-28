@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wfh.drawio.mapper.SysMenuMapper">
+
+    <resultMap id="BaseResultMap" type="com.wfh.drawio.model.entity.SysMenu">
+            <id property="id" column="Id" />
+            <result property="menuName" column="menuName" />
+            <result property="parentId" column="parentId" />
+            <result property="orderNum" column="orderNum" />
+            <result property="path" column="path" />
+            <result property="component" column="component" />
+            <result property="menuType" column="menuType" />
+            <result property="perms" column="perms" />
+            <result property="icon" column="icon" />
+            <result property="visible" column="visible" />
+            <result property="createTime" column="createTime" />
+            <result property="isDelete" column="isDelete" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        Id,menuName,parentId,orderNum,path,component,
+        menuType,perms,icon,visible,createTime,
+        isDelete
+    </sql>
+</mapper>

@@ -15,7 +15,7 @@ import lombok.Data;
  * @author wangfenghuan
  * @from wangfenghuan
  */
-@TableName(value = "user")
+@TableName(value = "sys_user")
 @Data
 public class User implements Serializable {
 
