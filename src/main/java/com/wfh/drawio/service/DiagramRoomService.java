@@ -1,7 +1,12 @@
 package com.wfh.drawio.service;
 
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.wfh.drawio.model.dto.room.RoomQueryRequest;
 import com.wfh.drawio.model.entity.DiagramRoom;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.wfh.drawio.model.vo.RoomVO;
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
 * @author fenghuanwang
@@ -9,5 +14,36 @@ import com.baomidou.mybatisplus.extension.service.IService;
 * @createDate 2025-12-28 11:00:22
 */
 public interface DiagramRoomService extends IService<DiagramRoom> {
+
+    /**
+     * 获取查询包装器
+     * @param roomQueryRequest
+     * @return
+     */
+    Wrapper<DiagramRoom> getQueryWrapper(RoomQueryRequest roomQueryRequest);
+
+    /**
+     * 获取分页包装类
+     * @param roomPage
+     * @param request
+     * @return
+     */
+    Page<RoomVO> getDiagramRoomVOPage(Page<DiagramRoom> roomPage, HttpServletRequest request);
+
+    /**
+     * 校验数据
+     * @param room
+     * @param b
+     */
+    void validRoom(DiagramRoom room, boolean b);
+
+
+    /**
+     * 获取房间封装类
+     * @param room
+     * @param request
+     * @return
+     */
+    RoomVO getDiagramRoomVO(DiagramRoom room, HttpServletRequest request);
 
 }

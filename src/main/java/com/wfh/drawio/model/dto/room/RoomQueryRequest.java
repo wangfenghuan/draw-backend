@@ -1,22 +1,25 @@
-package com.wfh.drawio.model.vo;
+package com.wfh.drawio.model.dto.room;
 
-import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
-import com.wfh.drawio.model.entity.DiagramRoom;
+import com.wfh.drawio.common.PageRequest;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
 import java.util.Date;
 
 /**
- * @Title: RoomVO
+ * @Title: RoomQueryRequest
  * @Author wangfenghuan
- * @Package com.wfh.drawio.model.vo
- * @Date 2025/12/28 11:21
+ * @Package com.wfh.drawio.model.dto.room
+ * @Date 2025/12/29 09:46
  * @description:
  */
-public class RoomVO implements Serializable {
+@EqualsAndHashCode(callSuper = true)
+@Data
+public class RoomQueryRequest extends PageRequest implements Serializable {
 
     /**
      * 房间id
@@ -27,6 +30,11 @@ public class RoomVO implements Serializable {
      * 房间名称
      */
     private String roomName;
+
+    /**
+     * 搜索词
+     */
+    private String searchText;
 
     /**
      * 房间所关联的图表id
@@ -43,10 +51,6 @@ public class RoomVO implements Serializable {
      */
     private Integer isPublic;
 
-    /**
-     * 是否删除
-     */
-    private Integer isDelete;
 
     /**
      * 创建时间
@@ -62,10 +66,5 @@ public class RoomVO implements Serializable {
      * 是否关闭
      */
     private Integer isOpen;
-
-    public static RoomVO objToVo(DiagramRoom room) {
-        return BeanUtil.copyProperties(room, RoomVO.class);
-    }
-
 
 }

@@ -1,11 +1,15 @@
 package com.wfh.drawio.model.entity;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.util.Date;
+
+import com.wfh.drawio.model.vo.RoomVO;
 import lombok.Data;
+import lombok.val;
 
 /**
  * 
@@ -66,4 +70,6 @@ public class DiagramRoom {
      * 访问密码
      */
     private String accessKey;
+
+
 }
