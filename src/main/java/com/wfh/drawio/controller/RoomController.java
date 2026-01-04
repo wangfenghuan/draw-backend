@@ -1,8 +1,6 @@
 package com.wfh.drawio.controller;
 
-import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.wfh.drawio.annotation.AuthCheck;
 import com.wfh.drawio.common.BaseResponse;
@@ -12,6 +10,7 @@ import com.wfh.drawio.common.ResultUtils;
 import com.wfh.drawio.constant.UserConstant;
 import com.wfh.drawio.exception.BusinessException;
 import com.wfh.drawio.exception.ThrowUtils;
+import com.wfh.drawio.mapper.DiagramRoomMapper;
 import com.wfh.drawio.model.dto.room.RoomAddRequest;
 import com.wfh.drawio.model.dto.room.RoomEditRequest;
 import com.wfh.drawio.model.dto.room.RoomQueryRequest;
@@ -44,6 +43,27 @@ public class RoomController {
 
     @Resource
     private DiagramRoomService roomService;
+
+
+    @Resource
+    private DiagramRoomMapper roomMapper;
+
+    /**
+     * 保存图表数据
+     * @param roomId
+     * @param encryptedData
+     */
+    @PostMapping("/{roomId}/save")
+    public BaseResponse<Boolean> save(@PathVariable Long roomId, @RequestBody byte[] encryptedData) {
+        DiagramRoom diagramRoom = new DiagramRoom();
+        diagramRoom.setId(roomId);
+        diagramRoom.setEncryptedData(encryptedData);
+        // 简单的覆盖保存
+        if (roomMapper.updateById(diagramRoom) == 0) {
+            roomMapper.insert(diagramRoom);
+        }
+        return ResultUtils.success(true);
+    }
 
     /**
      * 创建房间

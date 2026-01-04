@@ -47,6 +47,16 @@ public class DiagramRoom {
     private Long owerId;
 
     /**
+     * 加密后的图表数据
+     */
+    private byte[] encryptedData;
+
+    /**
+     * 加密向量
+     */
+    private String iv;
+
+    /**
      * 0代表公开，1代表不公开
      */
     @Schema(description = "是否公开（0公开，1私有）", example = "0")

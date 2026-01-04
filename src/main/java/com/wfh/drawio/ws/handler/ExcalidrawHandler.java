@@ -1,7 +1,8 @@
 package com.wfh.drawio.ws.handler;
 
-import com.wfh.drawio.mapper.CooperationRoomMapper;
+import com.wfh.drawio.mapper.DiagramRoomMapper;
 import com.wfh.drawio.model.entity.CooperationRoom;
+import com.wfh.drawio.model.entity.DiagramRoom;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -19,25 +20,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import com.wfh.drawio.mapper.CooperationRoomMapper;
-import com.wfh.drawio.model.entity.CooperationRoom;
-import jakarta.annotation.Resource;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
-import org.springframework.web.socket.BinaryMessage;
-import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
-import org.springframework.web.socket.WebSocketSession;
-import org.springframework.web.socket.handler.BinaryWebSocketHandler;
-
-import java.io.IOException;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * Excalidraw 风格的 WebSocket 处理器
@@ -53,17 +36,24 @@ import java.util.concurrent.Executors;
 @Slf4j
 public class ExcalidrawHandler extends BinaryWebSocketHandler {
 
-    // 房间管理: <RoomId, Sessions>
+    /**
+     * 房间管理
+     */
     private final Map<String, Set<WebSocketSession>> roomSessions = new ConcurrentHashMap<>();
 
-    @Resource
-    private CooperationRoomMapper roomMapper;
-
-    // 使用线程池异步存库，防止 I/O 阻塞 WebSocket 广播
+    /**
+     * 异步线程池存库
+     */
     private final ExecutorService dbExecutor = Executors.newFixedThreadPool(4);
 
+    @Resource
+    private DiagramRoomMapper roomMapper;
+
+
     /**
-     * 1. 连接建立：发送最新的加密数据给客户端，并广播用户数
+     * 连接建立：发送最新的加密数据给客户端，并广播用户数
+     * @param session
+     * @throws Exception
      */
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
@@ -73,7 +63,7 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
         log.info("✅ 用户加入协作房间: {}, 当前房间人数: {}", roomId, roomSessions.get(roomId).size());
 
         // A. 查库：获取该房间最新的加密快照，发送给新加入的用户
-        CooperationRoom room = roomMapper.selectById(roomId);
+        DiagramRoom room = roomMapper.selectById(roomId);
         if (room != null && room.getEncryptedData() != null) {
             try {
                 session.sendMessage(new BinaryMessage(room.getEncryptedData()));
@@ -90,7 +80,10 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
     }
 
     /**
-     * 2. 收到消息：广播 + 持久化
+     * 收到消息：广播 + 持久化
+     * @param session
+     * @param message
+     * @throws Exception
      */
     @Override
     protected void handleBinaryMessage(WebSocketSession session, BinaryMessage message) throws Exception {
@@ -111,7 +104,9 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
     }
 
     /**
-     * 3. 连接关闭：移除会话，广播更新后的用户数
+     * 连接关闭并广播用户数量
+     * @param session
+     * @param status
      */
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
@@ -135,16 +130,17 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
     }
 
     /**
-     * 辅助：保存快照逻辑
+     * 保存图表快照
+     * @param roomId
+     * @param data
      */
     private void saveSnapshot(String roomId, byte[] data) {
         try {
-            CooperationRoom room = new CooperationRoom();
+            DiagramRoom room = new DiagramRoom();
             room.setId(Long.valueOf(roomId));
             room.setEncryptedData(data);
-
             // UPSERT: 存在即更新，不存在即插入
-            CooperationRoom exist = roomMapper.selectById(roomId);
+            DiagramRoom exist = roomMapper.selectById(roomId);
             if (exist == null) {
                 roomMapper.insert(room);
                 log.info("💾 房间 {} 数据已插入", roomId);
@@ -158,7 +154,10 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
     }
 
     /**
-     * 辅助：广播二进制数据给房间内其他用户
+     * 广播二进制数据给房间内其他用户
+     * @param roomId
+     * @param payload
+     * @param senderId
      */
     private void broadcast(String roomId, byte[] payload, String senderId) {
         Set<WebSocketSession> sessions = roomSessions.get(roomId);
@@ -179,8 +178,8 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
     }
 
     /**
-     * ✨ 新增：广播用户数变化
-     * 发送 JSON 格式消息: {"type":"user_count","count":N}
+     * 广播用户数变化
+     * @param roomId
      */
     private void broadcastUserCount(String roomId) {
         Set<WebSocketSession> sessions = roomSessions.get(roomId);
@@ -211,8 +210,9 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
     }
 
     /**
-     * 辅助：从 URL 提取房间 ID
-     * URL 格式: ws://localhost:8081/api/excalidraw/{roomId}
+     * 从 URL 提取房间 ID
+     * @param session
+     * @return
      */
     private String getRoomId(WebSocketSession session) {
         String path = Objects.requireNonNull(session.getUri()).getPath();
