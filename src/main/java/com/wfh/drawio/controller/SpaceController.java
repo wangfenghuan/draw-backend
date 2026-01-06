@@ -1,5 +1,6 @@
 package com.wfh.drawio.controller;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.wfh.drawio.annotation.AuthCheck;
 import com.wfh.drawio.common.BaseResponse;
 import com.wfh.drawio.common.DeleteRequest;
@@ -8,11 +9,18 @@ import com.wfh.drawio.common.ResultUtils;
 import com.wfh.drawio.constant.UserConstant;
 import com.wfh.drawio.exception.BusinessException;
 import com.wfh.drawio.exception.ThrowUtils;
+import com.wfh.drawio.model.dto.diagram.DiagramQueryRequest;
+import com.wfh.drawio.model.dto.space.SpaceAddReqeust;
+import com.wfh.drawio.model.dto.space.SpaceQueryRequest;
 import com.wfh.drawio.model.dto.space.SpaceUpdateRequest;
+import com.wfh.drawio.model.entity.Diagram;
 import com.wfh.drawio.model.entity.Space;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.enums.SpaceLevelEnum;
+import com.wfh.drawio.model.vo.DiagramVO;
 import com.wfh.drawio.model.vo.SpaceLevel;
+import com.wfh.drawio.model.vo.SpaceVO;
+import com.wfh.drawio.service.DiagramService;
 import com.wfh.drawio.service.SpaceService;
 import com.wfh.drawio.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -41,6 +49,24 @@ public class SpaceController {
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private DiagramService diagramService;
+
+
+    /**
+     * 创建空间
+     * @param spaceAddReqeust
+     * @param request
+     * @return
+     */
+    @PostMapping("/add")
+    @Operation(summary = "创建空间")
+    public BaseResponse<Long> addSpace(SpaceAddReqeust spaceAddReqeust, HttpServletRequest request){
+        User loginUser = userService.getLoginUser(request);
+        long l = spaceService.addSpace(spaceAddReqeust, loginUser);
+        return ResultUtils.success(l);
+    }
 
     /**
      * 更新空间信息
@@ -178,5 +204,287 @@ public class SpaceController {
         return ResultUtils.success(spaceLevelList);
     }
 
+    // region 增删改查
+
+    /**
+     * 根据ID获取空间详情（封装类）
+     * 获取指定空间的详细信息
+     *
+     * @param id 空间ID
+     * @param request HTTP请求
+     * @return 空间详情（封装类）
+     */
+    @GetMapping("/get/vo")
+    @Operation(summary = "获取空间详情",
+            description = """
+                    根据ID获取空间的详细信息。
+
+                    **权限要求：**
+                    - 需要登录
+                    - 仅空间创建人或管理员可查看
+
+                    **返回内容：**
+                    - 空间基本信息（ID、名称、级别等）
+                    - 空间额度信息（maxCount、maxSize、totalCount、totalSize）
+                    """)
+    public BaseResponse<SpaceVO> getSpaceVOById(long id, HttpServletRequest request) {
+        ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
+        // 查询数据库
+        Space space = spaceService.getById(id);
+        ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR);
+        // 权限校验
+        User loginUser = userService.getLoginUser(request);
+        if (!space.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
+        }
+        // 获取封装类
+        return ResultUtils.success(spaceService.getSpaceVO(space, request));
+    }
+
+    /**
+     * 根据ID获取空间（仅管理员）
+     * 管理员专用的空间查询接口
+     *
+     * @param id 空间ID
+     * @param request HTTP请求
+     * @return 空间实体类
+     */
+    @GetMapping("/get")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @Operation(summary = "获取空间（管理员专用）",
+            description = """
+                    管理员专用的空间查询接口，获取空间实体类。
+
+                    **权限要求：**
+                    - 仅限admin角色使用
+                    """)
+    public BaseResponse<Space> getSpaceById(long id, HttpServletRequest request) {
+        ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
+        // 查询数据库
+        Space space = spaceService.getById(id);
+        ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR);
+        return ResultUtils.success(space);
+    }
+
+    /**
+     * 分页获取空间列表（仅管理员）
+     * 管理员专用的空间列表查询接口
+     *
+     * @param spaceQueryRequest 查询请求
+     * @return 空间列表（分页）
+     */
+    @PostMapping("/list/page")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @Operation(summary = "分页查询空间（管理员专用）",
+            description = """
+                    管理员专用的空间列表查询接口，可以查询所有空间。
+
+                    **权限要求：**
+                    - 仅限admin角色使用
+
+                    **查询条件：**
+                    - 支持按空间名称、ID、用户ID、空间级别等条件查询
+                    - 支持分页查询
+                    """)
+    public BaseResponse<Page<Space>> listSpaceByPage(@RequestBody SpaceQueryRequest spaceQueryRequest) {
+        long current = spaceQueryRequest.getCurrent();
+        long size = spaceQueryRequest.getPageSize();
+        // 查询数据库
+        Page<Space> spacePage = spaceService.page(new Page<>(current, size),
+                spaceService.getQueryWrapper(spaceQueryRequest));
+        return ResultUtils.success(spacePage);
+    }
+
+    /**
+     * 分页获取空间列表（封装类）
+     * 查询空间列表，支持多种查询条件
+     *
+     * @param spaceQueryRequest 查询请求
+     * @param request HTTP请求
+     * @return 空间列表（封装类，分页）
+     */
+    @PostMapping("/list/page/vo")
+    @Operation(summary = "分页查询空间列表",
+            description = """
+                    查询空间列表，支持按条件筛选。
+
+                    **权限要求：**
+                    - 需要登录
+                    - 只能查询自己创建的空间
+
+                    **限制条件：**
+                    - 每页最多20条（防止爬虫）
+                    - 支持按名称、级别等条件筛选
+                    """)
+    public BaseResponse<Page<SpaceVO>> listSpaceVOByPage(@RequestBody SpaceQueryRequest spaceQueryRequest,
+                                                          HttpServletRequest request) {
+        ThrowUtils.throwIf(spaceQueryRequest == null, ErrorCode.PARAMS_ERROR);
+        // 补充查询条件，只查询当前登录用户的数据
+        User loginUser = userService.getLoginUser(request);
+        spaceQueryRequest.setUserId(loginUser.getId());
+        long current = spaceQueryRequest.getCurrent();
+        long size = spaceQueryRequest.getPageSize();
+        // 限制爬虫
+        ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+        // 查询数据库
+        Page<Space> spacePage = spaceService.page(new Page<>(current, size),
+                spaceService.getQueryWrapper(spaceQueryRequest));
+        // 获取封装类
+        return ResultUtils.success(spaceService.getSpaceVOPage(spacePage, request));
+    }
+
+    /**
+     * 分页获取当前登录用户创建的空间列表
+     * 查询自己创建的所有空间
+     *
+     * @param spaceQueryRequest 查询请求
+     * @param request HTTP请求
+     * @return 我的空间列表（封装类，分页）
+     */
+    @PostMapping("/my/list/page/vo")
+    @Operation(summary = "查询我的空间",
+            description = """
+                    查询当前登录用户创建的所有空间。
+
+                    **权限要求：**
+                    - 需要登录
+                    - 只能查询自己创建的空间
+
+                    **限制条件：**
+                    - 每页最多20条（防止爬虫）
+                    - 支持按名称等条件筛选
+                    """)
+    public BaseResponse<Page<SpaceVO>> listMySpaceVOByPage(@RequestBody SpaceQueryRequest spaceQueryRequest,
+                                                            HttpServletRequest request) {
+        ThrowUtils.throwIf(spaceQueryRequest == null, ErrorCode.PARAMS_ERROR);
+        // 补充查询条件，只查询当前登录用户的数据
+        User loginUser = userService.getLoginUser(request);
+        spaceQueryRequest.setUserId(loginUser.getId());
+        long current = spaceQueryRequest.getCurrent();
+        long size = spaceQueryRequest.getPageSize();
+        // 限制爬虫
+        ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+        // 查询数据库
+        Page<Space> spacePage = spaceService.page(new Page<>(current, size),
+                spaceService.getQueryWrapper(spaceQueryRequest));
+        // 获取封装类
+        return ResultUtils.success(spaceService.getSpaceVOPage(spacePage, request));
+    }
+
+    /**
+     * 编辑空间信息（给用户使用）
+     * 用户编辑自己的空间信息
+     *
+     * @param spaceEditRequest 空间编辑请求
+     * @param request HTTP请求
+     * @return 是否编辑成功
+     */
+    @PostMapping("/edit")
+    @Operation(summary = "编辑空间信息",
+            description = """
+                    用户编辑自己的空间信息，目前支持修改空间名称。
+
+                    **权限要求：**
+                    - 需要登录
+                    - 仅空间创建人可编辑
+
+                    **可编辑字段：**
+                    - spaceName：空间名称
+
+                    **不可编辑字段：**
+                    - spaceLevel：空间级别（如需升级，请联系管理员）
+                    - maxCount、maxSize：由空间级别自动决定
+                    """)
+    public BaseResponse<Boolean> editSpace(@RequestBody com.wfh.drawio.model.dto.space.SpaceEditRequest spaceEditRequest,
+                                           HttpServletRequest request) {
+        if (spaceEditRequest == null || spaceEditRequest.getId() <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        Space space = new Space();
+        BeanUtils.copyProperties(spaceEditRequest, space);
+        // 数据校验
+        spaceService.validSpace(space, false);
+        User loginUser = userService.getLoginUser(request);
+        // 判断是否存在
+        long id = spaceEditRequest.getId();
+        Space oldSpace = spaceService.getById(id);
+        ThrowUtils.throwIf(oldSpace == null, ErrorCode.NOT_FOUND_ERROR);
+        // 仅本人或管理员可编辑
+        if (!oldSpace.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
+        }
+        // 操作数据库
+        boolean result = spaceService.updateById(space);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 根据空间ID查询图表列表
+     * 查询指定空间下的所有图表
+     *
+     * @param spaceId 空间ID
+     * @param diagramQueryRequest 查询请求（分页参数）
+     * @param request HTTP请求
+     * @return 图表列表（封装类，分页）
+     */
+    @PostMapping("/list/diagrams/{spaceId}")
+    @Operation(summary = "查询空间下的图表列表",
+            description = """
+                    查询指定空间下的所有图表。
+
+                    **权限要求：**
+                    - 需要登录
+                    - 仅空间创建人可查询
+
+                    **功能说明：**
+                    - 返回指定空间下的所有图表
+                    - 支持分页查询
+                    - 支持按图表名称等条件筛选
+
+                    **限制条件：**
+                    - 每页最多20条（防止爬虫）
+                    """)
+    public BaseResponse<Page<DiagramVO>> listDiagramsBySpaceId(
+            @PathVariable Long spaceId,
+            @RequestBody(required = false) DiagramQueryRequest diagramQueryRequest,
+            HttpServletRequest request) {
+        ThrowUtils.throwIf(spaceId <= 0, ErrorCode.PARAMS_ERROR, "空间ID不能为空");
+
+        // 获取登录用户
+        User loginUser = userService.getLoginUser(request);
+
+        // 查询空间是否存在
+        Space space = spaceService.getById(spaceId);
+        ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
+
+        // 权限校验：仅空间创建人可查询
+        if (!space.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限查询该空间的图表");
+        }
+
+        // 构建查询请求
+        if (diagramQueryRequest == null) {
+            diagramQueryRequest = new DiagramQueryRequest();
+        }
+        diagramQueryRequest.setSpaceId(spaceId);
+
+        long current = diagramQueryRequest.getCurrent();
+        long size = diagramQueryRequest.getPageSize();
+        // 限制爬虫
+        ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+
+        // 查询数据库
+        Page<Diagram> diagramPage = diagramService.page(
+                new Page<>(current, size),
+                diagramService.getQueryWrapper(diagramQueryRequest));
+
+        // 获取封装类
+        Page<DiagramVO> diagramVOPage = diagramService.getDiagramVOPage(diagramPage, request);
+
+        return ResultUtils.success(diagramVOPage);
+    }
+
+    // endregion
 
 }

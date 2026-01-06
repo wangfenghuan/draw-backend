@@ -2,27 +2,33 @@ package com.wfh.drawio.service.impl;
 
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.wfh.drawio.common.ErrorCode;
 import com.wfh.drawio.exception.BusinessException;
 import com.wfh.drawio.exception.ThrowUtils;
 import com.wfh.drawio.model.dto.space.SpaceAddReqeust;
+import com.wfh.drawio.model.dto.space.SpaceQueryRequest;
 import com.wfh.drawio.model.entity.Diagram;
 import com.wfh.drawio.model.entity.Space;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.enums.SpaceLevelEnum;
+import com.wfh.drawio.model.vo.SpaceVO;
 import com.wfh.drawio.service.DiagramService;
 import com.wfh.drawio.service.SpaceService;
 import com.wfh.drawio.mapper.SpaceMapper;
 import com.wfh.drawio.service.UserService;
 import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletRequest;
 import jdk.jfr.Label;
+import org.apache.commons.lang3.ObjectUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
 * @author fenghuanwang
@@ -71,7 +77,7 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
                 ThrowUtils.throwIf(exists, ErrorCode.OPERATION_ERROR, "每一个用户只能有一个私有的空间");
                 // 写入数据库
                 boolean save = this.save(space);
-                ThrowUtils.throwIf(save, ErrorCode.OPERATION_ERROR);
+                ThrowUtils.throwIf(!save, ErrorCode.OPERATION_ERROR);
                 return space.getId();
             });
             return Optional.ofNullable(newSpaceId).orElse(-1L);
@@ -169,8 +175,71 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         });
     }
 
+    /**
+     * 获取查询条件
+     *
+     * @param spaceQueryRequest
+     * @return
+     */
+    @Override
+    public QueryWrapper<Space> getQueryWrapper(SpaceQueryRequest spaceQueryRequest) {
+        QueryWrapper<Space> queryWrapper = new QueryWrapper<>();
+        if (spaceQueryRequest == null) {
+            return queryWrapper;
+        }
+        Long id = spaceQueryRequest.getId();
+        Long userId = spaceQueryRequest.getUserId();
+        String spaceName = spaceQueryRequest.getSpaceName();
+        Integer spaceLevel = spaceQueryRequest.getSpaceLevel();
+        String sortField = spaceQueryRequest.getSortField();
+        String sortOrder = spaceQueryRequest.getSortOrder();
 
+        // 精确查询
+        queryWrapper.eq(ObjectUtils.isNotEmpty(id), "id", id);
+        queryWrapper.eq(ObjectUtils.isNotEmpty(userId), "userId", userId);
+        queryWrapper.eq(ObjectUtils.isNotEmpty(spaceLevel), "spaceLevel", spaceLevel);
+        // 模糊查询
+        queryWrapper.like(StrUtil.isNotBlank(spaceName), "spaceName", spaceName);
+        // 排序
+        queryWrapper.orderBy(StrUtil.isNotBlank(sortField),
+                sortOrder.equals("asc"), sortField);
+        return queryWrapper;
+    }
 
+    /**
+     * 获取空间封装
+     *
+     * @param space
+     * @param request
+     * @return
+     */
+    @Override
+    public SpaceVO getSpaceVO(Space space, HttpServletRequest request) {
+        // 对象转封装类
+        SpaceVO spaceVO = SpaceVO.objToVo(space);
+        // 可以在这里补充其他信息，比如用户信息等
+        return spaceVO;
+    }
+
+    /**
+     * 分页获取空间封装
+     *
+     * @param spacePage
+     * @param request
+     * @return
+     */
+    @Override
+    public Page<SpaceVO> getSpaceVOPage(Page<Space> spacePage, HttpServletRequest request) {
+        Page<SpaceVO> spaceVOPage = new Page<>(spacePage.getCurrent(), spacePage.getSize(), spacePage.getTotal());
+        if (spacePage.getRecords() == null || spacePage.getRecords().isEmpty()) {
+            return spaceVOPage;
+        }
+        // 对象列表 => 封装对象列表
+        spaceVOPage.setRecords(spacePage.getRecords().stream()
+                .map(space -> this.getSpaceVO(space, request))
+                .collect(Collectors.toList()));
+        return spaceVOPage;
+    }
 
 }
 

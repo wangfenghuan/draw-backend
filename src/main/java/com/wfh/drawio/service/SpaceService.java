@@ -1,10 +1,15 @@
 package com.wfh.drawio.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.extension.service.IService;
 import com.wfh.drawio.model.dto.space.SpaceAddReqeust;
+import com.wfh.drawio.model.dto.space.SpaceQueryRequest;
 import com.wfh.drawio.model.entity.Diagram;
 import com.wfh.drawio.model.entity.Space;
-import com.baomidou.mybatisplus.extension.service.IService;
 import com.wfh.drawio.model.entity.User;
+import com.wfh.drawio.model.vo.SpaceVO;
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
 * @author fenghuanwang
@@ -42,4 +47,30 @@ public interface SpaceService extends IService<Space> {
      * @param id 空间ID
      */
     void deleteSpaceWithDiagrams(Long id);
+
+    /**
+     * 获取查询条件
+     *
+     * @param spaceQueryRequest
+     * @return
+     */
+    QueryWrapper<Space> getQueryWrapper(SpaceQueryRequest spaceQueryRequest);
+
+    /**
+     * 获取空间封装
+     *
+     * @param space
+     * @param request
+     * @return
+     */
+    SpaceVO getSpaceVO(Space space, HttpServletRequest request);
+
+    /**
+     * 分页获取空间封装
+     *
+     * @param spacePage
+     * @param request
+     * @return
+     */
+    Page<SpaceVO> getSpaceVOPage(Page<Space> spacePage, HttpServletRequest request);
 }
