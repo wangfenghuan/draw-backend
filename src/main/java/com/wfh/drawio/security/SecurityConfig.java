@@ -15,7 +15,15 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.servlet.HandlerExceptionResolver;
+
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * @Title: SecurityConfig
@@ -37,8 +45,22 @@ public class SecurityConfig{
     private HandlerExceptionResolver resolver;
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
-        httpSecurity.authorizeHttpRequests(auth -> auth
+    public SecurityContextRepository securityContextRepository() {
+        return new HttpSessionSecurityContextRepository();
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity httpSecurity, SecurityContextRepository securityContextRepository) throws Exception {
+        // 配置 SecurityContextRepository,将 SecurityContext 持久化到 HttpSession
+        // 这样 Spring Session 可以自动将 Session 同步到 Redis
+        httpSecurity
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // 设置 SecurityContextRepository
+                .securityContext(securityContext -> securityContext
+                        .securityContextRepository(securityContextRepository)
+                        .requireExplicitSave(true)
+                )
+                .authorizeHttpRequests(auth -> auth
                 // 注册和登录接口
                 .requestMatchers(
                         "/user/register",
@@ -90,5 +112,28 @@ public class SecurityConfig{
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
         return authenticationConfiguration.getAuthenticationManager();
+    }
+
+    /**
+     * 2. 【新增】CORS 配置源
+     * 这里是针对 Session 模式的严格配置
+     */
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        // 允许的前端域名 (必须是具体的，不能写 "*")
+        configuration.setAllowedOriginPatterns(List.of("*"));
+
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
+
+        // 【关键】是否允许发送 Cookie/凭证
+        // 因为你用了 Session，这里必须是 true
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 }

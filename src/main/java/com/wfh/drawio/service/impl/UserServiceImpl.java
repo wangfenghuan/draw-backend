@@ -21,14 +21,17 @@ import com.wfh.drawio.model.vo.UserVO;
 import com.wfh.drawio.service.UserService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.stereotype.Service;
 
 /**
@@ -47,6 +50,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Resource
     private AuthenticationManager authenticationManager;
+
+    @Resource
+    private SecurityContextRepository securityContextRepository;
 
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword) {
@@ -86,7 +92,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
-    public LoginUserVO userLogin(String userAccount, String userPassword, HttpServletRequest request) {
+    public LoginUserVO userLogin(String userAccount, String userPassword, HttpServletRequest request, HttpServletResponse response) {
         // 1. 校验
         if (StringUtils.isAnyBlank(userAccount, userPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数为空");
@@ -99,14 +105,23 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
 
         // 2. 使用 Spring Security 进行认证
+        // 如果密码错误，这里会直接抛出 AuthenticationException，会被全局异常捕获
         Authentication authenticationToken = new UsernamePasswordAuthenticationToken(userAccount, userPassword);
-        Authentication authenticate = authenticationManager.authenticate(authenticationToken);
+        Authentication authentication = authenticationManager.authenticate(authenticationToken);
 
-        // 3. 将认证信息存储到 SecurityContext
-        SecurityContextHolder.getContext().setAuthentication(authenticate);
+        // 3. 构建 SecurityContext
+        // 最佳实践：创建一个空的 Context，而不是直接 getContext()，防止多线程竞争干扰
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authentication);
+        SecurityContextHolder.setContext(context);
 
-        // 4. 从认证结果中获取用户信息
-        User user = (User) authenticate.getPrincipal();
+        // 4. 【核心修复】显式保存 Context 到 Session (Redis)
+        // 因为你在 Config 里配置了 requireExplicitSave(true)，没有这一行，Redis 里永远是空的！
+        securityContextRepository.saveContext(context, request, response);
+
+        // 5. 从认证结果中获取用户信息
+        // 强转前提：你的 User 实体类必须实现了 UserDetails 接口
+        User user = (User) authentication.getPrincipal();
 
         return this.getLoginUserVO(user);
     }

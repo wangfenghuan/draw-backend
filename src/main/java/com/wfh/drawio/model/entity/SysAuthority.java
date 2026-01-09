@@ -2,6 +2,7 @@ package com.wfh.drawio.model.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 
+import java.io.Serializable;
 import java.util.Date;
 import lombok.Data;
 import org.springframework.security.core.GrantedAuthority;
@@ -13,7 +14,7 @@ import org.springframework.security.core.GrantedAuthority;
  */
 @TableName(value ="sys_authority")
 @Data
-public class SysAuthority implements GrantedAuthority {
+public class SysAuthority implements GrantedAuthority, Serializable {
     /**
      * 主键ID
      */

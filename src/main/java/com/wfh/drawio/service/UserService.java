@@ -7,6 +7,7 @@ import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.vo.LoginUserVO;
 import com.wfh.drawio.model.vo.UserVO;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 import java.util.List;
 
@@ -37,7 +38,7 @@ public interface UserService extends IService<User> {
      * @param request
      * @return 脱敏后的用户信息
      */
-    LoginUserVO userLogin(String userAccount, String userPassword, HttpServletRequest request);
+    LoginUserVO userLogin(String userAccount, String userPassword, HttpServletRequest request, HttpServletResponse response);
 
     /**
      * 获取当前登录用户

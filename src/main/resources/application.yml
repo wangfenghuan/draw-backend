@@ -3,6 +3,26 @@ spring:
     active: local
   application:
     name: drawio-backend
+  # Spring Session 配置
+  session:
+    store-type: redis  # 使用 Redis 存储 Session
+    timeout: 604800     # Session 过期时间: 7天 (单位:秒)
+    redis:
+      namespace: spring:session:drawio  # Redis key 的命名空间
+  # Redis 配置
+  data:
+    redis:
+      password: E628L1..3K220
+      host: 47.95.35.178
+      port: 6379
+      database: 4
+      # 连接池配置
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
 server:
   port: 8081
   servlet:
