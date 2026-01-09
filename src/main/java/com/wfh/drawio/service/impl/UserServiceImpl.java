@@ -22,6 +22,7 @@ import com.wfh.drawio.service.UserService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
@@ -209,6 +210,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public boolean userLogout(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session != null){
+            session.invalidate();
+        }
         // 清除 SecurityContext 中的认证信息
         SecurityContextHolder.clearContext();
         return true;
