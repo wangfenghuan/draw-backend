@@ -4,6 +4,8 @@ import com.wfh.drawio.mapper.DiagramRoomMapper;
 import com.wfh.drawio.model.entity.DiagramRoom;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.CloseStatus;
@@ -11,6 +13,9 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.BinaryWebSocketHandler;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.security.Principal;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -45,8 +50,13 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
      */
     private final ExecutorService dbExecutor = Executors.newFixedThreadPool(4);
 
+    private static final byte OP_SYNC = 0x00;        // 刚进房间拉取数据
+    private static final byte OP_POINTER = 0x01;     // 鼠标移动 (Awareness)
+    private static final byte OP_ELEMENTS = 0x02;    // 画图/修改/删除 (关键!)
+
     @Resource
     private DiagramRoomMapper roomMapper;
+
 
 
     /**
@@ -56,7 +66,7 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
      */
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
-        String userId = String.valueOf(session.getAttributes().get("userId"));
+
         String roomId = getRoomId(session);
         roomSessions.computeIfAbsent(roomId, k -> new CopyOnWriteArraySet<>()).add(session);
 
@@ -87,6 +97,24 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
      */
     @Override
     protected void handleBinaryMessage(WebSocketSession session, BinaryMessage message) throws Exception {
+
+        ByteBuffer buffer = message.getPayload();
+        if (buffer.remaining() < 1){
+            return;
+        }
+        // 读取首字节
+        byte msgType = buffer.get(0);
+        // 获取用户权限
+        Principal principal = session.getPrincipal();
+        // todo
+        boolean canView = hasPermission(principal, "");
+        boolean canEdit = hasPermission(principal, "");
+        boolean admin = hasPermission(principal, "");
+        // 无查看权限直接断开
+        if (!canView){
+            session.close();
+            return;
+        }
         String roomId = getRoomId(session);
 
         // 获取二进制负载 (这是前端加密过的)
@@ -218,5 +246,40 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
         String path = Objects.requireNonNull(session.getUri()).getPath();
         // /api/excalidraw/{roomId} -> 提取最后一部分
         return path.substring(path.lastIndexOf('/') + 1);
+    }
+
+
+    /**
+     * 校验权限
+     * @param principal
+     * @param targetPerm
+     * @return
+     */
+    private boolean hasPermission(Principal principal, String targetPerm){
+        // 未登录直接拒绝
+        if (principal == null){
+            return false;
+        }
+        if (principal instanceof Authentication){
+            Authentication auth = (Authentication) principal;
+            // 获取所有权限
+            Collection<? extends GrantedAuthority> authorities = auth.getAuthorities();
+            if (authorities == null || authorities.isEmpty()){
+                return false;
+            }
+            // 遍历权限
+            for (GrantedAuthority authority : authorities) {
+                String myPerm = authority.getAuthority();
+                if ("admin".equals(myPerm)){
+                    // 超级管理员直接放行
+                    return true;
+                }
+                if (myPerm.equals(targetPerm)){
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

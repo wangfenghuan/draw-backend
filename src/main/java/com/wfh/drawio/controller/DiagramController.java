@@ -36,6 +36,7 @@ import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -405,7 +406,7 @@ public class DiagramController {
      * @return 是否更新成功
      */
     @PostMapping("/update")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @PreAuthorize("hasAuthority('admin')")
     @Operation(summary = "更新图表（管理员专用）",
             description = """
                     管理员专用的图表更新接口，可以更新任意图表信息。
@@ -482,7 +483,7 @@ public class DiagramController {
      * @return 图表列表（分页）
      */
     @PostMapping("/list/page")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @PreAuthorize("hasAuthority('admin')")
     @Operation(summary = "分页查询图表（管理员专用）",
             description = """
                     管理员专用的图表列表查询接口，可以查询所有图表。

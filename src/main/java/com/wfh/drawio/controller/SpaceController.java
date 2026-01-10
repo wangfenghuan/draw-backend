@@ -28,6 +28,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.BeanUtils;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
@@ -77,7 +78,7 @@ public class SpaceController {
      * @return 是否更新成功
      */
     @PostMapping("/update")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @PreAuthorize("hasAuthority('admin')")
     @Operation(summary = "更新空间信息（管理员专用）",
             description = """
                     管理员专用的空间信息更新接口。
@@ -251,7 +252,7 @@ public class SpaceController {
      * @return 空间实体类
      */
     @GetMapping("/get")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @PreAuthorize("hasAuthority('admin')")
     @Operation(summary = "获取空间（管理员专用）",
             description = """
                     管理员专用的空间查询接口，获取空间实体类。
@@ -275,7 +276,7 @@ public class SpaceController {
      * @return 空间列表（分页）
      */
     @PostMapping("/list/page")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @PreAuthorize("hasAuthority('admin')")
     @Operation(summary = "分页查询空间（管理员专用）",
             description = """
                     管理员专用的空间列表查询接口，可以查询所有空间。

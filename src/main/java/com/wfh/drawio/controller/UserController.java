@@ -28,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -138,7 +139,7 @@ public class UserController {
      */
     @PostMapping("/add")
     @Operation(summary = "创建用户")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Long> addUser(@RequestBody UserAddRequest userAddRequest, HttpServletRequest request) {
         if (userAddRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -162,7 +163,7 @@ public class UserController {
      */
     @PostMapping("/delete")
     @Operation(summary = "删除用户")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Boolean> deleteUser(@RequestBody DeleteRequest deleteRequest, HttpServletRequest request) {
         if (deleteRequest == null || deleteRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -180,7 +181,7 @@ public class UserController {
      */
     @PostMapping("/update")
     @Operation(summary = "更新用户")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Boolean> updateUser(@RequestBody UserUpdateRequest userUpdateRequest,
             HttpServletRequest request) {
         if (userUpdateRequest == null || userUpdateRequest.getId() == null) {
@@ -202,7 +203,7 @@ public class UserController {
      */
     @GetMapping("/get")
     @Operation(summary = "根据 id 获取用户（仅管理员）")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<User> getUserById(long id, HttpServletRequest request) {
         if (id <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -236,7 +237,7 @@ public class UserController {
      */
     @PostMapping("/list/page")
     @Operation(summary = "分页获取用户列表（仅管理员）")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Page<User>> listUserByPage(@RequestBody UserQueryRequest userQueryRequest,
             HttpServletRequest request) {
         long current = userQueryRequest.getCurrent();

@@ -22,6 +22,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.BeanUtils;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -148,7 +149,7 @@ public class RoomController {
      * @return
      */
     @PostMapping("/update")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @PreAuthorize("hasAuthority('admin')")
     @Operation(summary = "更新房间信息（仅管理员可用）")
     public BaseResponse<Boolean> updateDiagramRoom(@RequestBody RoomUpdateRequest roomUpdateRequest) {
         if (roomUpdateRequest == null || roomUpdateRequest.getId() <= 0) {
@@ -196,7 +197,7 @@ public class RoomController {
      * @return
      */
     @PostMapping("/list/page")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @PreAuthorize("hasAuthority('admin')")
     @Operation(summary = "分页获取房间列表（仅管理员可用）")
     public BaseResponse<Page<DiagramRoom>> listDiagramRoomByPage(@RequestBody RoomQueryRequest roomQueryRequest) {
         long current = roomQueryRequest.getCurrent();

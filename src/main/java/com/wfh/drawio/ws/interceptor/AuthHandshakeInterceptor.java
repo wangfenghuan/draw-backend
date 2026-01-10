@@ -37,7 +37,7 @@ public class AuthHandshakeInterceptor implements HandshakeInterceptor {
             return false;
         }
 
-        attributes.put("userId", loginUser.getId());
+        attributes.put("user", loginUser);
         return true;
     }
 
