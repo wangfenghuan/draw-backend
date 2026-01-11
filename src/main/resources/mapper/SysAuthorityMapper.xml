@@ -9,7 +9,7 @@
             <result property="parentId" column="parentId" />
             <result property="name" column="name" />
             <result property="description" column="description" />
-            <result property="resource" column="resource" />
+            <result property="authority" column="resource" />
             <result property="type" column="type" />
             <result property="createTime" column="createTime" />
             <result property="updateTime" column="updateTime" />

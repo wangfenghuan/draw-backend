@@ -2,6 +2,7 @@ package com.wfh.drawio.mapper;
 
 import com.wfh.drawio.model.entity.SysAuthority;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.apache.ibatis.annotations.ResultMap;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
@@ -19,6 +20,7 @@ public interface SysAuthorityMapper extends BaseMapper<SysAuthority> {
      * 根据用户ID查询所有权限
      * 路径：User -> sys_user_role_rel -> sys_role_authority_rel -> sys_authority
      */
+    @ResultMap("BaseResultMap")
     @Select("SELECT DISTINCT a.* " +
             "FROM sys_authority a " +
             "INNER JOIN sys_role_authority_rel ra ON a.id = ra.authorityId " +
