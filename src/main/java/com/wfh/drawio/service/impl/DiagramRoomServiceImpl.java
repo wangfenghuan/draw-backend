@@ -10,10 +10,12 @@ import com.wfh.drawio.exception.BusinessException;
 import com.wfh.drawio.exception.ThrowUtils;
 import com.wfh.drawio.model.dto.room.RoomQueryRequest;
 import com.wfh.drawio.model.entity.DiagramRoom;
+import com.wfh.drawio.model.entity.Space;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.vo.RoomVO;
 import com.wfh.drawio.model.vo.UserVO;
 import com.wfh.drawio.service.DiagramRoomService;
+import com.wfh.drawio.service.SpaceService;
 import com.wfh.drawio.service.UserService;
 import com.wfh.drawio.mapper.DiagramRoomMapper;
 import jakarta.annotation.Resource;
@@ -37,6 +39,9 @@ public class DiagramRoomServiceImpl extends ServiceImpl<DiagramRoomMapper, Diagr
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private SpaceService spaceService;
 
     @Override
     public Wrapper<DiagramRoom> getQueryWrapper(RoomQueryRequest roomQueryRequest) {
@@ -121,6 +126,22 @@ public class DiagramRoomServiceImpl extends ServiceImpl<DiagramRoomMapper, Diagr
             }
         }
         return roomVO;
+    }
+
+    /**
+     * 校验空间权限
+     */
+    @Override
+    public void validateSpacePermission(Long spaceId, User loginUser) {
+        if (spaceId != null) {
+            // 校验空间是否存在
+            Space space = spaceService.getById(spaceId);
+            ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
+            // 校验权限（只有空间创建人才能在空间中创建房间）
+            if (!loginUser.getId().equals(space.getUserId())) {
+                throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "没有空间权限");
+            }
+        }
     }
 }
 

@@ -1,18 +1,8 @@
 package com.wfh.drawio.controller;
 
-import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.ObjUtil;
-import cn.hutool.core.util.RandomUtil;
-import cn.hutool.json.JSONUtil;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.wfh.drawio.annotation.AuthCheck;
 import com.wfh.drawio.common.*;
-import com.wfh.drawio.constant.CachePrefixConstant;
-import com.wfh.drawio.constant.RedisPrefixConstant;
-import com.wfh.drawio.constant.UserConstant;
 import com.wfh.drawio.exception.BusinessException;
 import com.wfh.drawio.exception.ThrowUtils;
 import com.wfh.drawio.manager.MinioManager;
@@ -24,10 +14,6 @@ import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.enums.FileUploadBizEnum;
 import com.wfh.drawio.model.vo.DiagramVO;
 import com.wfh.drawio.service.*;
-import com.wfh.drawio.service.StrategyContext;
-import com.wfh.drawio.service.SvgDownloadStrategy;
-import com.wfh.drawio.service.PngDownloadStrategy;
-import com.wfh.drawio.service.XmlDownloadStrategy;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
@@ -35,18 +21,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.commons.lang3.RandomUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 
 /**
@@ -75,27 +53,7 @@ public class DiagramController {
     private RoomUpdatesService updatesService;
 
     @Resource
-    private SvgDownloadStrategy svgDownloadStrategy;
-
-    @Resource
-    private PngDownloadStrategy pngDownloadStrategy;
-
-    @Resource
-    private XmlDownloadStrategy xmlDownloadStrategy;
-
-    @Resource
     private SpaceService spaceService;
-
-    @Resource
-    private StringRedisTemplate stringRedisTemplate;
-
-    /**
-     * 图表分页缓存
-     */
-    Cache<String, Page<DiagramVO>> diagramsPageCache = Caffeine.newBuilder()
-            .maximumSize(10_000)
-            .expireAfterWrite(RandomUtil.randomInt(10, 30), TimeUnit.MINUTES)
-            .build();
 
     /**
      * 检查是否有上传权限，抢锁
@@ -193,7 +151,7 @@ public class DiagramController {
         if (fileUploadBizEnum == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        validFile(multipartFile, fileUploadBizEnum);
+        diagramService.validDiagramFile(multipartFile, fileUploadBizEnum);
 
         // 文件目录：根据业务、用户来划分
         String uuid = RandomStringUtils.randomAlphanumeric(8);
@@ -268,46 +226,7 @@ public class DiagramController {
             if (!diagram.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)){
                 throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
             }
-            Long id = diagram.getId();
-            StrategyContext strategyContext = new StrategyContext();
-            switch (type){
-                case "SVG":
-                    strategyContext.setDownloadStrategy(svgDownloadStrategy);
-                    strategyContext.execDownload(id, fileName, response);
-                    break;
-                case "PNG":
-                    strategyContext.setDownloadStrategy(pngDownloadStrategy);
-                    strategyContext.execDownload(id, fileName, response);
-                    break;
-                case "XML":
-                    strategyContext.setDownloadStrategy(xmlDownloadStrategy);
-                    strategyContext.execDownload(id, fileName, response);
-                    break;
-                default:
-                    break;
-            }
-    }
-
-    /**
-     * 校验文件
-     *
-     * @param multipartFile
-     * @param fileUploadBizEnum 业务类型
-     */
-    private void validFile(MultipartFile multipartFile, FileUploadBizEnum fileUploadBizEnum) {
-        // 文件大小
-        long fileSize = multipartFile.getSize();
-        // 文件后缀
-        String fileSuffix = FileUtil.getSuffix(multipartFile.getOriginalFilename());
-        final long ONE_M = 1024 * 1024L;
-        if (FileUploadBizEnum.USER_AVATAR.equals(fileUploadBizEnum)) {
-            if (fileSize > ONE_M) {
-                throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件大小不能超过 1M");
-            }
-            if (!Arrays.asList("jpeg", "jpg", "svg", "png", "webp", "svg").contains(fileSuffix)) {
-                throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件类型错误");
-            }
-        }
+            diagramService.downloadDiagramFile(diagramId, type, fileName, response);
     }
 
     // region 增删改查
@@ -664,45 +583,8 @@ public class DiagramController {
      */
     @PostMapping("/getDiagrams")
     public BaseResponse<Page<DiagramVO>> getByPage(@RequestBody DiagramQueryRequest pageRequest){
-        int current = pageRequest.getCurrent();
-        int pageSize = pageRequest.getPageSize();
-        // 构造key
-        String redisKey = String.format(RedisPrefixConstant.ALL_DIAGRAM + "%s:%s:", current, pageSize);
-        String cacheKey = String.format(CachePrefixConstant.ALL_DIAGRAM + "%s:%s", current, pageSize);
-        // 先查询Caffeine中是否存在
-        Page<DiagramVO> cachePage = diagramsPageCache.getIfPresent(cacheKey);
-        if (cachePage == null){
-            // 本地缓存为空，去查询redis
-            // 先查询redis是否存在
-            String pageStr = stringRedisTemplate.opsForValue().get(redisKey);
-            if (StringUtils.isEmpty(pageStr)){
-                // 如果Redis中是空的话，就查询数据库并构造缓存
-                Page<Diagram> page = new Page<>(pageRequest.getCurrent(), pageRequest.getPageSize());
-                LambdaQueryWrapper<Diagram> queryWrapper = new LambdaQueryWrapper<>();
-                queryWrapper.isNull(Diagram::getSpaceId);
-                Page<Diagram> resultPage = diagramService.page(page, queryWrapper);
-                List<DiagramVO> diagramVOList = resultPage.getRecords().stream()
-                        .map(DiagramVO::objToVo)
-                        .toList();
-                Page<DiagramVO> resPage = new Page<>(pageRequest.getCurrent(), pageRequest.getPageSize());
-                resPage.setRecords(diagramVOList);
-                resPage.setTotal(resultPage.getTotal());
-                String jsonStr = JSONUtil.toJsonStr(resPage);
-                // 设置Redis缓存
-                stringRedisTemplate.opsForValue().set(redisKey, jsonStr, RandomUtil.randomInt(10, 40), TimeUnit.MINUTES);
-                // 设置Caffeine缓存
-                diagramsPageCache.put(cacheKey, resPage);
-                return ResultUtils.success(resPage);
-            }else {
-                // redis中不为空的话，直接反序列化之后返回给前端
-                Page<DiagramVO> page = JSONUtil.toBean(pageStr, Page.class);
-                // 同时设置本地缓存
-                diagramsPageCache.put(cacheKey, page);
-                return ResultUtils.success(page);
-            }
-        }
-        // 本地缓存不为空，直接返回
-        return ResultUtils.success(cachePage);
+        Page<DiagramVO> resultPage = diagramService.getPublicDiagramsByPage(pageRequest);
+        return ResultUtils.success(resultPage);
     }
     // endregion
 }

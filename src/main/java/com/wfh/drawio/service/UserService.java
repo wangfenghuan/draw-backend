@@ -2,6 +2,7 @@ package com.wfh.drawio.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.wfh.drawio.model.dto.user.UserAddRequest;
 import com.wfh.drawio.model.dto.user.UserQueryRequest;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.vo.LoginUserVO;
@@ -110,5 +111,13 @@ public interface UserService extends IService<User> {
      * @return
      */
     QueryWrapper<User> getQueryWrapper(UserQueryRequest userQueryRequest);
+
+    /**
+     * 管理员创建用户
+     *
+     * @param userAddRequest 用户创建请求
+     * @return 新用户ID
+     */
+    Long addUserByAdmin(UserAddRequest userAddRequest);
 
 }

@@ -1,10 +1,18 @@
 package com.wfh.drawio.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.io.FileUtil;
+import cn.hutool.core.util.RandomUtil;
+import cn.hutool.json.JSONUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.wfh.drawio.common.ErrorCode;
+import com.wfh.drawio.constant.CachePrefixConstant;
+import com.wfh.drawio.constant.RedisPrefixConstant;
 import com.wfh.drawio.exception.BusinessException;
 import com.wfh.drawio.exception.ThrowUtils;
 import com.wfh.drawio.model.dto.diagram.DiagramAddRequest;
@@ -13,10 +21,15 @@ import com.wfh.drawio.model.entity.Diagram;
 import com.wfh.drawio.model.entity.Space;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.mapper.DiagramMapper;
+import com.wfh.drawio.model.enums.FileUploadBizEnum;
 import com.wfh.drawio.model.vo.DiagramVO;
 import com.wfh.drawio.model.vo.UserVO;
 import com.wfh.drawio.service.DiagramService;
+import com.wfh.drawio.service.PngDownloadStrategy;
 import com.wfh.drawio.service.SpaceService;
+import com.wfh.drawio.service.SvgDownloadStrategy;
+import com.wfh.drawio.service.StrategyContext;
+import com.wfh.drawio.service.XmlDownloadStrategy;
 import com.wfh.drawio.service.UserService;
 
 import jakarta.annotation.Resource;
@@ -28,9 +41,11 @@ import org.apache.commons.lang3.StringUtils;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StreamUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -38,9 +53,11 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import javax.annotation.PostConstruct;
 
 /**
  * 图表服务实现
@@ -61,6 +78,31 @@ public class DiagramServiceImpl extends ServiceImpl<DiagramMapper, Diagram> impl
 
     @Resource
     private TransactionTemplate transactionTemplate;
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
+
+    @Resource
+    private SvgDownloadStrategy svgDownloadStrategy;
+
+    @Resource
+    private PngDownloadStrategy pngDownloadStrategy;
+
+    @Resource
+    private XmlDownloadStrategy xmlDownloadStrategy;
+
+    /**
+     * 图表分页缓存
+     */
+    private Cache<String, Page<DiagramVO>> diagramsPageCache;
+
+    @PostConstruct
+    public void init() {
+        diagramsPageCache = Caffeine.newBuilder()
+                .maximumSize(10_000)
+                .expireAfterWrite(RandomUtil.randomInt(10, 30), TimeUnit.MINUTES)
+                .build();
+    }
 
     @Override
     public boolean tryAcquireLock(String roomName){
@@ -453,6 +495,103 @@ public class DiagramServiceImpl extends ServiceImpl<DiagramMapper, Diagram> impl
             }
             return diagram.getId();
         });
+    }
+
+    /**
+     * 校验图表文件
+     *
+     * @param multipartFile 上传的文件
+     * @param fileUploadBizEnum 业务类型
+     */
+    @Override
+    public void validDiagramFile(MultipartFile multipartFile, FileUploadBizEnum fileUploadBizEnum) {
+        // 文件大小
+        long fileSize = multipartFile.getSize();
+        // 文件后缀
+        String fileSuffix = FileUtil.getSuffix(multipartFile.getOriginalFilename());
+        final long ONE_M = 1024 * 1024L;
+        if (FileUploadBizEnum.USER_AVATAR.equals(fileUploadBizEnum)) {
+            if (fileSize > ONE_M) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件大小不能超过 1M");
+            }
+            if (!Arrays.asList("jpeg", "jpg", "svg", "png", "webp", "svg").contains(fileSuffix)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件类型错误");
+            }
+        }
+    }
+
+    /**
+     * 分页获取所有公共空间的图表（带多级缓存）
+     * 缓存策略: Caffeine(L1) -> Redis(L2) -> DB
+     */
+    @Override
+    public Page<DiagramVO> getPublicDiagramsByPage(DiagramQueryRequest pageRequest) {
+        int current = pageRequest.getCurrent();
+        int pageSize = pageRequest.getPageSize();
+        // 构造key
+        String redisKey = String.format(RedisPrefixConstant.ALL_DIAGRAM + "%s:%s:", current, pageSize);
+        String cacheKey = String.format(CachePrefixConstant.ALL_DIAGRAM + "%s:%s", current, pageSize);
+        // 先查询Caffeine中是否存在
+        Page<DiagramVO> cachePage = diagramsPageCache.getIfPresent(cacheKey);
+        if (cachePage == null) {
+            // 本地缓存为空，去查询redis
+            // 先查询redis是否存在
+            String pageStr = stringRedisTemplate.opsForValue().get(redisKey);
+            if (StringUtils.isEmpty(pageStr)) {
+                // 如果Redis中是空的话，就查询数据库并构造缓存
+                Page<Diagram> page = new Page<>(pageRequest.getCurrent(), pageRequest.getPageSize());
+                LambdaQueryWrapper<Diagram> queryWrapper = new LambdaQueryWrapper<>();
+                queryWrapper.isNull(Diagram::getSpaceId);
+                Page<Diagram> resultPage = this.page(page, queryWrapper);
+                List<DiagramVO> diagramVOList = resultPage.getRecords().stream()
+                        .map(DiagramVO::objToVo)
+                        .toList();
+                Page<DiagramVO> resPage = new Page<>(pageRequest.getCurrent(), pageRequest.getPageSize());
+                resPage.setRecords(diagramVOList);
+                resPage.setTotal(resultPage.getTotal());
+                String jsonStr = JSONUtil.toJsonStr(resPage);
+                // 设置Redis缓存
+                stringRedisTemplate.opsForValue().set(redisKey, jsonStr, RandomUtil.randomInt(10, 40), TimeUnit.MINUTES);
+                // 设置Caffeine缓存
+                diagramsPageCache.put(cacheKey, resPage);
+                return resPage;
+            } else {
+                // redis中不为空的话，直接反序列化之后返回给前端
+                Page<DiagramVO> page = JSONUtil.toBean(pageStr, Page.class);
+                // 同时设置本地缓存
+                diagramsPageCache.put(cacheKey, page);
+                return page;
+            }
+        }
+        // 本地缓存不为空，直接返回
+        return cachePage;
+    }
+
+    /**
+     * 根据图表ID和文件类型下载图表文件
+     */
+    @Override
+    public void downloadDiagramFile(Long diagramId, String type, String fileName, HttpServletResponse response) {
+        Diagram diagram = this.getById(diagramId);
+        ThrowUtils.throwIf(diagram == null, ErrorCode.NOT_FOUND_ERROR, "图表不存在");
+
+        StrategyContext strategyContext = new StrategyContext();
+        switch (type) {
+            case "SVG":
+                strategyContext.setDownloadStrategy(svgDownloadStrategy);
+                strategyContext.execDownload(diagramId, fileName, response);
+                break;
+            case "PNG":
+                strategyContext.setDownloadStrategy(pngDownloadStrategy);
+                strategyContext.execDownload(diagramId, fileName, response);
+                break;
+            case "XML":
+                strategyContext.setDownloadStrategy(xmlDownloadStrategy);
+                strategyContext.execDownload(diagramId, fileName, response);
+                break;
+            default:
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "不支持的文件类型: " + type);
+        }
     }
 
 }

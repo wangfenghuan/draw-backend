@@ -6,12 +6,10 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import java.util.List;
 
 
-import com.wfh.drawio.annotation.AuthCheck;
 import com.wfh.drawio.common.BaseResponse;
 import com.wfh.drawio.common.DeleteRequest;
 import com.wfh.drawio.common.ErrorCode;
 import com.wfh.drawio.common.ResultUtils;
-import com.wfh.drawio.constant.UserConstant;
 import com.wfh.drawio.exception.BusinessException;
 import com.wfh.drawio.exception.ThrowUtils;
 import com.wfh.drawio.model.dto.user.*;
@@ -23,7 +21,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
 
 import org.apache.commons.lang3.StringUtils;
@@ -33,7 +30,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -141,17 +137,8 @@ public class UserController {
     @Operation(summary = "创建用户")
     @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Long> addUser(@RequestBody UserAddRequest userAddRequest, HttpServletRequest request) {
-        if (userAddRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        User user = new User();
-        BeanUtils.copyProperties(userAddRequest, user);
-        // 默认密码 12345678
-        // 注意: 这里不再加密,因为加密逻辑应该在 service 层统一处理
-        // 如果需要创建用户时设置默认密码,建议在 UserService 中创建专门的方法
-        boolean result = userService.save(user);
-        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
-        return ResultUtils.success(user.getId());
+        Long userId = userService.addUserByAdmin(userAddRequest);
+        return ResultUtils.success(userId);
     }
 
     /**

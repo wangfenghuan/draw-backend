@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.wfh.drawio.model.dto.room.RoomQueryRequest;
 import com.wfh.drawio.model.entity.DiagramRoom;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.vo.RoomVO;
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -46,4 +47,12 @@ public interface DiagramRoomService extends IService<DiagramRoom> {
      */
     RoomVO getDiagramRoomVO(DiagramRoom room, HttpServletRequest request);
 
+    /**
+     * 校验空间权限
+     * 如果有空间ID，需要校验空间是否存在以及用户是否有权限
+     *
+     * @param spaceId 空间ID
+     * @param loginUser 登录用户
+     */
+    void validateSpacePermission(Long spaceId, User loginUser);
 }

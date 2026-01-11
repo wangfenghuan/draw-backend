@@ -2,19 +2,16 @@ package com.wfh.drawio.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.wfh.drawio.annotation.AuthCheck;
 import com.wfh.drawio.common.BaseResponse;
 import com.wfh.drawio.common.DeleteRequest;
 import com.wfh.drawio.common.ErrorCode;
 import com.wfh.drawio.common.ResultUtils;
-import com.wfh.drawio.constant.UserConstant;
 import com.wfh.drawio.exception.BusinessException;
 import com.wfh.drawio.exception.ThrowUtils;
 import com.wfh.drawio.mapper.DiagramRoomMapper;
 import com.wfh.drawio.model.dto.room.*;
 import com.wfh.drawio.model.entity.Diagram;
 import com.wfh.drawio.model.entity.DiagramRoom;
-import com.wfh.drawio.model.entity.Space;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.vo.DiagramVO;
 import com.wfh.drawio.model.vo.RoomVO;
@@ -131,17 +128,8 @@ public class RoomController {
         ThrowUtils.throwIf(roomAddRequest == null, ErrorCode.PARAMS_ERROR);
         User loginUser = userService.getLoginUser(request);
 
-        // 如果有空间ID，需要校验空间权限
-        Long spaceId = roomAddRequest.getSpaceId();
-        if (spaceId != null) {
-            // 校验空间是否存在
-            Space space = spaceService.getById(spaceId);
-            ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
-            // 校验权限（只有空间创建人才能在空间中创建房间）
-            if (!loginUser.getId().equals(space.getUserId())) {
-                throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "没有空间权限");
-            }
-        }
+        // 校验空间权限
+        roomService.validateSpacePermission(roomAddRequest.getSpaceId(), loginUser);
 
         // 判断房间是否存在，不存在才创建
         LambdaQueryWrapper<DiagramRoom> queryWrapper = new LambdaQueryWrapper<>();
@@ -280,11 +268,7 @@ public class RoomController {
         // 如果有空间ID，需要校验空间权限
         if (spaceId != null) {
             User loginUser = userService.getLoginUser(request);
-            Space space = spaceService.getById(spaceId);
-            ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
-            if (!loginUser.getId().equals(space.getUserId())) {
-                throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "没有空间权限");
-            }
+            roomService.validateSpacePermission(spaceId, loginUser);
         }
 
         // 查询数据库

@@ -7,9 +7,11 @@ import com.wfh.drawio.model.dto.diagram.DiagramAddRequest;
 import com.wfh.drawio.model.dto.diagram.DiagramQueryRequest;
 import com.wfh.drawio.model.entity.Diagram;
 import com.wfh.drawio.model.entity.User;
+import com.wfh.drawio.model.enums.FileUploadBizEnum;
 import com.wfh.drawio.model.vo.DiagramVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.web.multipart.MultipartFile;
 
 
 /**
@@ -91,4 +93,31 @@ public interface DiagramService extends IService<Diagram> {
      * @return
      */
     Long addDiagramWithQuota(DiagramAddRequest diagramAddRequest, User loginUser);
+
+    /**
+     * 校验图表文件
+     *
+     * @param multipartFile 上传的文件
+     * @param fileUploadBizEnum 业务类型
+     */
+    void validDiagramFile(MultipartFile multipartFile, FileUploadBizEnum fileUploadBizEnum);
+
+    /**
+     * 分页获取所有公共空间的图表（带多级缓存）
+     * 缓存策略: Caffeine(L1) -> Redis(L2) -> DB
+     *
+     * @param diagramQueryRequest 查询请求
+     * @return 图表列表（封装类，分页）
+     */
+    Page<DiagramVO> getPublicDiagramsByPage(DiagramQueryRequest diagramQueryRequest);
+
+    /**
+     * 根据图表ID和文件类型下载图表文件
+     *
+     * @param diagramId 图表ID
+     * @param type 文件类型（SVG、PNG、XML）
+     * @param fileName 下载后的文件名（可选）
+     * @param response HTTP响应对象
+     */
+    void downloadDiagramFile(Long diagramId, String type, String fileName, HttpServletResponse response);
 }

@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 import com.wfh.drawio.common.ErrorCode;
 import com.wfh.drawio.exception.BusinessException;
 import com.wfh.drawio.mapper.UserMapper;
+import com.wfh.drawio.model.dto.user.UserAddRequest;
 import com.wfh.drawio.model.dto.user.UserQueryRequest;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.enums.UserRoleEnum;
@@ -266,5 +267,25 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         queryWrapper.like(StringUtils.isNotBlank(userProfile), "userProfile", userProfile);
         queryWrapper.like(StringUtils.isNotBlank(userName), "userName", userName);
         return queryWrapper;
+    }
+
+    /**
+     * 管理员创建用户
+     */
+    @Override
+    public Long addUserByAdmin(UserAddRequest userAddRequest) {
+        if (userAddRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        User user = new User();
+        BeanUtils.copyProperties(userAddRequest, user);
+        // 设置默认密码并加密
+        String defaultPassword = "12345678";
+        user.setUserPassword(passwordEncoder.encode(defaultPassword));
+        boolean result = this.save(user);
+        if (!result) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "创建用户失败");
+        }
+        return user.getId();
     }
 }
