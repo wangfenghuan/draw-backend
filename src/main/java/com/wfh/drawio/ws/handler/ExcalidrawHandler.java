@@ -2,8 +2,10 @@ package com.wfh.drawio.ws.handler;
 
 import com.wfh.drawio.mapper.DiagramRoomMapper;
 import com.wfh.drawio.model.entity.DiagramRoom;
+import com.wfh.drawio.service.DiagramRoomService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
@@ -57,6 +59,8 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
     @Resource
     private DiagramRoomMapper roomMapper;
 
+    @Resource
+    private DiagramRoomService diagramRoomService;
 
 
     /**
@@ -66,7 +70,11 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
      */
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
-
+        // 权限校验
+        if (!hasPermission(session.getPrincipal(), "diagram:view")){
+            session.close(CloseStatus.POLICY_VIOLATION);
+            return;
+        }
         String roomId = getRoomId(session);
         roomSessions.computeIfAbsent(roomId, k -> new CopyOnWriteArraySet<>()).add(session);
 
@@ -75,16 +83,21 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
         // A. 查库：获取该房间最新的加密快照，发送给新加入的用户
         DiagramRoom room = roomMapper.selectById(roomId);
         if (room != null && room.getEncryptedData() != null) {
+            byte[] encryptedData = room.getEncryptedData();
+            // 构造同步标志
+            ByteBuffer initPayload = ByteBuffer.allocate(1 + encryptedData.length);
+            initPayload.put(OP_SYNC);
+            initPayload.put(encryptedData);
+            initPayload.flip();
             try {
-                session.sendMessage(new BinaryMessage(room.getEncryptedData()));
-                log.info("📤 发送房间 {} 的加密快照，数据大小: {} bytes", roomId, room.getEncryptedData().length);
+                session.sendMessage(new BinaryMessage(initPayload));
+                log.info("📤 发送房间 {} 的加密快照，数据大小: {} bytes", roomId, encryptedData.length);
             } catch (IOException e) {
                 log.error("❌ 发送加密快照失败: {}", e.getMessage());
             }
         } else {
             log.info("ℹ️ 房间 {} 暂无数据", roomId);
         }
-
         // B. 广播当前在线人数给房间内所有人
         broadcastUserCount(roomId);
     }
@@ -106,29 +119,34 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
         byte msgType = buffer.get(0);
         // 获取用户权限
         Principal principal = session.getPrincipal();
-        // todo
-        boolean canView = hasPermission(principal, "");
-        boolean canEdit = hasPermission(principal, "");
-        boolean admin = hasPermission(principal, "");
+        boolean canView = hasPermission(principal, "diagram:view");
+        boolean canEdit = hasPermission(principal, "diagram:edit");
         // 无查看权限直接断开
         if (!canView){
             session.close();
             return;
         }
         String roomId = getRoomId(session);
-
-        // 获取二进制负载 (这是前端加密过的)
-        byte[] payload = message.getPayload().array();
-
-        log.debug("📨 收到房间 {} 的加密数据，大小: {} bytes", roomId, payload.length);
-
-        // A. 广播: 毫秒级转发给其他人
-        broadcast(roomId, payload, session.getId());
-
-        // B. 持久化: 异步存入 MySQL
-        dbExecutor.submit(() -> {
-            saveSnapshot(roomId, payload);
-        });
+        switch (msgType){
+            case OP_POINTER -> broadcast(roomId, message, session.getId());
+            case OP_ELEMENTS -> {
+                // 检查编辑权限
+                if (canEdit){
+                    broadcast(roomId, message , session.getId());
+                    // 异步存库
+                    byte[] data = new byte[buffer.remaining() - 1];
+                    // 移动指针跳过第0位，读取剩余数据
+                    buffer.position(1);
+                    buffer.get(data);
+                    dbExecutor.submit(() -> saveSnapshot(roomId, data));
+                }else {
+                    // 无权操作：忽略或发送错误提示
+                    log.warn("⛔ 拦截无权写操作: user={}", principal.getName());
+                    // sendError(session, "您处于访客模式，无法编辑");
+                }
+            }
+            default -> {}
+        }
     }
 
     /**
@@ -140,15 +158,11 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         String roomId = getRoomId(session);
         Set<WebSocketSession> sessions = roomSessions.get(roomId);
-
         if (sessions != null) {
             sessions.remove(session);
-
             // 广播更新后的用户数
             broadcastUserCount(roomId);
-
             log.info("👋 用户离开协作房间: {}, 当前房间人数: {}", roomId, sessions.size());
-
             // 如果房间空了，清理房间
             if (sessions.isEmpty()) {
                 roomSessions.remove(roomId);
@@ -168,14 +182,7 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
             room.setId(Long.valueOf(roomId));
             room.setEncryptedData(data);
             // UPSERT: 存在即更新，不存在即插入
-            DiagramRoom exist = roomMapper.selectById(roomId);
-            if (exist == null) {
-                roomMapper.insert(room);
-                log.info("💾 房间 {} 数据已插入", roomId);
-            } else {
-                roomMapper.updateById(room);
-                log.info("💾 房间 {} 数据已更新", roomId);
-            }
+            diagramRoomService.saveOrUpdate(room);
         } catch (Exception e) {
             log.error("❌ 保存房间 {} 数据失败: {}", roomId, e.getMessage());
         }
@@ -184,24 +191,24 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
     /**
      * 广播二进制数据给房间内其他用户
      * @param roomId
-     * @param payload
+     * @param message
      * @param senderId
      */
-    private void broadcast(String roomId, byte[] payload, String senderId) {
+    private void broadcast(String roomId, BinaryMessage message, String senderId) {
         Set<WebSocketSession> sessions = roomSessions.get(roomId);
         if (sessions != null) {
-            int successCount = 0;
-            for (WebSocketSession s : sessions) {
-                if (s.isOpen() && !s.getId().equals(senderId)) {
-                    try {
-                        s.sendMessage(new BinaryMessage(payload));
-                        successCount++;
-                    } catch (IOException e) {
-                        log.error("❌ 广播消息失败: {}", e.getMessage());
+            ByteBuffer payload = message.getPayload();
+            ByteBuffer duplicate = payload.duplicate();
+            for (WebSocketSession session : sessions) {
+                if (session.isOpen() && !session.getId().equals(senderId)){
+                    try{
+                        session.sendMessage(new BinaryMessage(duplicate.duplicate()));
+                    }catch (Exception e){
+                        log.error("广播失败");
                     }
                 }
             }
-            log.debug("📡 房间 {} 广播给 {} 人", roomId, successCount);
+            log.debug("📡 房间 {} 广播", roomId);
         }
     }
 
@@ -215,12 +222,9 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
             log.debug("⏭️ 房间 {} 不存在或为空，跳过用户数广播", roomId);
             return;
         }
-
         int userCount = sessions.size();
         String jsonMessage = String.format("{\"type\":\"user_count\",\"count\":%d}", userCount);
-
         log.info("📊 广播用户数: 房间={}, 人数={}", roomId, userCount);
-
         int successCount = 0;
         for (WebSocketSession session : sessions) {
             if (session.isOpen()) {
@@ -233,7 +237,6 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
                 }
             }
         }
-
         log.info("📤 用户数消息已发送给 {} 人", successCount);
     }
 

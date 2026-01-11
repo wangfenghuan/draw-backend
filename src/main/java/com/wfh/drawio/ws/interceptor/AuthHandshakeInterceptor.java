@@ -27,16 +27,13 @@ public class AuthHandshakeInterceptor implements HandshakeInterceptor {
     public boolean beforeHandshake(@NotNull ServerHttpRequest request, @NotNull ServerHttpResponse response, @NotNull WebSocketHandler wsHandler, @NotNull Map<String, Object> attributes) throws Exception {
         // 从 SecurityContext 获取认证信息
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-
         if (authentication == null || !(authentication.getPrincipal() instanceof User)) {
             return false;
         }
-
         User loginUser = (User) authentication.getPrincipal();
         if (loginUser == null || loginUser.getId() == null) {
             return false;
         }
-
         attributes.put("user", loginUser);
         return true;
     }
