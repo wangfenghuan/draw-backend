@@ -139,12 +139,6 @@
             <artifactId>redisson</artifactId>
             <version>3.52.0</version>
         </dependency>
-
-        <dependency>
-            <groupId>org.passay</groupId>
-            <artifactId>passay</artifactId>
-            <version>1.6.6</version>
-        </dependency>
         <!-- https://mvnrepository.com/artifact/com.github.ben-manes.caffeine/caffeine -->
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>

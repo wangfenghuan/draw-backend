@@ -19,18 +19,18 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 @Configuration
 public class WebSocketConfig implements WebSocketConfigurer {
 
-    private final ExcalidrawHandler excalidrawHandler;
+    private final YjsHandler YjsHandler;
 
     private final AuthHandshakeInterceptor authHandshakeInterceptor;
 
-    public WebSocketConfig(ExcalidrawHandler excalidrawHandler, AuthHandshakeInterceptor authHandshakeInterceptor) {
-        this.excalidrawHandler = excalidrawHandler;
+    public WebSocketConfig(YjsHandler YjsHandler, AuthHandshakeInterceptor authHandshakeInterceptor) {
+        this.YjsHandler = YjsHandler;
         this.authHandshakeInterceptor = authHandshakeInterceptor;
     }
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(excalidrawHandler, "/excalidraw/*")
+        registry.addHandler(YjsHandler, "/yjs/*")
                 .addInterceptors(authHandshakeInterceptor)
                 .setAllowedOriginPatterns("*");
     }

@@ -21,7 +21,6 @@ import java.util.concurrent.*;
  */
 @Slf4j
 @Service
-@Deprecated
 public class RoomUpdateBatchService extends ServiceImpl<RoomUpdatesMapper, RoomUpdates> {
 
     /**
@@ -54,7 +53,7 @@ public class RoomUpdateBatchService extends ServiceImpl<RoomUpdatesMapper, RoomU
     }
 
 
-    @Deprecated
+    @PostConstruct
     public void init() {
        executorService.execute(this::batchProcessLoop);
     }
@@ -79,6 +78,7 @@ public class RoomUpdateBatchService extends ServiceImpl<RoomUpdatesMapper, RoomU
         }
     }
 
+    @PreDestroy
     public void destroy() {
         isRunning = false;
         log.info("应用关闭，正在处理剩余的 {} 条数据...", queue.size());

@@ -32,6 +32,7 @@ import com.wfh.drawio.service.StrategyContext;
 import com.wfh.drawio.service.XmlDownloadStrategy;
 import com.wfh.drawio.service.UserService;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -41,6 +42,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -57,7 +59,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import javax.annotation.PostConstruct;
 
 /**
  * 图表服务实现
@@ -83,12 +84,15 @@ public class DiagramServiceImpl extends ServiceImpl<DiagramMapper, Diagram> impl
     private StringRedisTemplate stringRedisTemplate;
 
     @Resource
+    @Lazy
     private SvgDownloadStrategy svgDownloadStrategy;
 
     @Resource
+    @Lazy
     private PngDownloadStrategy pngDownloadStrategy;
 
     @Resource
+    @Lazy
     private XmlDownloadStrategy xmlDownloadStrategy;
 
     /**

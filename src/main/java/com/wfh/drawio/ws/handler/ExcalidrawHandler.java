@@ -5,7 +5,6 @@ import com.wfh.drawio.model.entity.DiagramRoom;
 import com.wfh.drawio.service.DiagramRoomService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
@@ -40,6 +39,7 @@ import org.springframework.web.socket.TextMessage;
  */
 @Component
 @Slf4j
+@Deprecated
 public class ExcalidrawHandler extends BinaryWebSocketHandler {
 
     /**
@@ -138,6 +138,7 @@ public class ExcalidrawHandler extends BinaryWebSocketHandler {
                     // 移动指针跳过第0位，读取剩余数据
                     buffer.position(1);
                     buffer.get(data);
+                    log.info("保存图表快照~~~");
                     dbExecutor.submit(() -> saveSnapshot(roomId, data));
                 }else {
                     // 无权操作：忽略或发送错误提示

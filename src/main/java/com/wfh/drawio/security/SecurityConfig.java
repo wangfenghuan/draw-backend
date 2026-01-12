@@ -80,7 +80,7 @@ public class SecurityConfig{
                 // 静态资源
                 .requestMatchers("/static/**", "/public/**").permitAll()
                 // WebSocket 路径
-                .requestMatchers("/excalidraw/**").permitAll()
+                .requestMatchers("/yjs/**").permitAll()
                 // 处理跨域请求的预检请求 (OPTIONS)
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 // 其他所有请求需要认证
