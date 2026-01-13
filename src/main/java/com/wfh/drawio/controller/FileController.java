@@ -8,7 +8,7 @@ import com.wfh.drawio.common.BaseResponse;
 import com.wfh.drawio.common.ErrorCode;
 import com.wfh.drawio.common.ResultUtils;
 import com.wfh.drawio.exception.BusinessException;
-import com.wfh.drawio.manager.MinioManager;
+import com.wfh.drawio.manager.RustFsManager;
 import com.wfh.drawio.model.dto.file.UploadFileRequest;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.enums.FileUploadBizEnum;
@@ -38,7 +38,7 @@ public class FileController {
     private UserService userService;
 
     @Resource
-    private MinioManager minioManager;
+    private RustFsManager rustFsManager;
 
 
     /**
@@ -66,7 +66,7 @@ public class FileController {
         String fileUrl = "";
         try {
             // 上传文件
-            fileUrl = minioManager.putObject(filepath, multipartFile.getInputStream(), multipartFile, loginUser.getId());
+            fileUrl = rustFsManager.putObject(filepath, multipartFile.getInputStream());
             // 返回可访问地址
             return ResultUtils.success(fileUrl);
         } catch (Exception e) {

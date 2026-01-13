@@ -581,15 +581,15 @@ public class DiagramServiceImpl extends ServiceImpl<DiagramMapper, Diagram> impl
 
         StrategyContext strategyContext = new StrategyContext();
         switch (type) {
-            case "SVG":
+            case "svg":
                 strategyContext.setDownloadStrategy(svgDownloadStrategy);
                 strategyContext.execDownload(diagramId, fileName, response);
                 break;
-            case "PNG":
+            case "png":
                 strategyContext.setDownloadStrategy(pngDownloadStrategy);
                 strategyContext.execDownload(diagramId, fileName, response);
                 break;
-            case "XML":
+            case "xml":
                 strategyContext.setDownloadStrategy(xmlDownloadStrategy);
                 strategyContext.execDownload(diagramId, fileName, response);
                 break;

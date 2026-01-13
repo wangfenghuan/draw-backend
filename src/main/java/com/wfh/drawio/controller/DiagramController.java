@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.wfh.drawio.common.*;
 import com.wfh.drawio.exception.BusinessException;
 import com.wfh.drawio.exception.ThrowUtils;
-import com.wfh.drawio.manager.MinioManager;
+import com.wfh.drawio.manager.RustFsManager;
 import com.wfh.drawio.model.dto.diagram.*;
 import com.wfh.drawio.model.entity.Diagram;
 import com.wfh.drawio.model.entity.RoomSnapshots;
@@ -44,7 +44,7 @@ public class DiagramController {
     private UserService userService;
 
     @Resource
-    private MinioManager minioManager;
+    private RustFsManager rustFsManager;
 
     @Resource
     private RoomSnapshotsService snapshotsService;
@@ -163,16 +163,16 @@ public class DiagramController {
 
         // 构建文件路径
         if (spaceId != null){
-            filepath = String.format("/space/%s/%s/%s/%s/%s", spaceId, fileUploadBizEnum.getValue(), loginUser.getId(), diagramId, filename);
+            filepath = String.format("space/%s/%s/%s/%s/%s", spaceId, fileUploadBizEnum.getValue(), loginUser.getId(), diagramId, filename);
         }else {
-            filepath = String.format("/public/%s/%s/%s/%s", fileUploadBizEnum.getValue(), loginUser.getId(), diagramId, filename);
+            filepath = String.format("public/%s/%s/%s/%s", fileUploadBizEnum.getValue(), loginUser.getId(), diagramId, filename);
         }
 
         String fileUrl = "";
         String extension = FilenameUtils.getExtension(filename);
         try {
             // 上传文件
-            fileUrl = minioManager.putObject(filepath, multipartFile.getInputStream(), multipartFile, loginUser.getId());
+            fileUrl = rustFsManager.putObject(filepath, multipartFile.getInputStream());
 
             // 使用service层方法处理业务逻辑（包含额度校验和更新）
             diagramService.uploadDiagramWithQuota(diagramId, spaceId, fileUrl, fileSize, extension, loginUser);
