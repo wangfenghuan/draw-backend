@@ -14,6 +14,7 @@ import com.wfh.drawio.model.entity.Space;
 import com.wfh.drawio.model.entity.SpaceUser;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.vo.SpaceUserVO;
+import com.wfh.drawio.service.SpaceRoleService;
 import com.wfh.drawio.service.SpaceService;
 import com.wfh.drawio.service.SpaceUserService;
 import com.wfh.drawio.service.UserService;
@@ -43,6 +44,9 @@ public class SpaceUserController {
 
     @Resource
     private SpaceService spaceService;
+
+    @Resource
+    private SpaceRoleService spaceRoleService;
 
     /**
      * 添加成员到空间
@@ -81,7 +85,6 @@ public class SpaceUserController {
      * @return
      */
     @PostMapping("/delete")
-    @PreAuthorize("hasSpaceAuthority(#oldSpaceUser.spaceId, 'space:user:manage') or hasAuthority('admin')")
     @Operation(summary = "从空间移除成员",
             description = """
                     从团队空间中移除成员。
@@ -100,6 +103,14 @@ public class SpaceUserController {
         // 判断是否存在
         SpaceUser oldSpaceUser = spaceUserService.getById(id);
         ThrowUtils.throwIf(oldSpaceUser == null, ErrorCode.NOT_FOUND_ERROR);
+
+        // 手动校验空间权限（因为需要先查询 oldSpaceUser 才能知道 spaceId）
+        User loginUser = userService.getLoginUser(request);
+        if (!spaceRoleService.hasAuthority(loginUser.getId(), oldSpaceUser.getSpaceId(), "space:user:manage")
+                && !userService.isAdmin(loginUser)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无空间用户管理权限");
+        }
+
         // 操作数据库
         boolean result = spaceUserService.removeById(id);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
@@ -149,7 +160,6 @@ public class SpaceUserController {
      * @return
      */
     @PostMapping("/edit")
-    @PreAuthorize("hasSpaceAuthority(#oldSpaceUser.spaceId, 'space:user:manage') or hasAuthority('admin')")
     @Operation(summary = "编辑成员信息（设置权限）",
             description = """
                     修改空间成员的角色权限。
@@ -173,6 +183,14 @@ public class SpaceUserController {
         long id = spaceUserEditRequest.getId();
         SpaceUser oldSpaceUser = spaceUserService.getById(id);
         ThrowUtils.throwIf(oldSpaceUser == null, ErrorCode.NOT_FOUND_ERROR);
+
+        // 手动校验空间权限（因为需要先查询 oldSpaceUser 才能知道 spaceId）
+        User loginUser = userService.getLoginUser(request);
+        if (!spaceRoleService.hasAuthority(loginUser.getId(), oldSpaceUser.getSpaceId(), "space:user:manage")
+                && !userService.isAdmin(loginUser)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无空间用户管理权限");
+        }
+
         // 操作数据库
         boolean result = spaceUserService.updateById(spaceUser);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);

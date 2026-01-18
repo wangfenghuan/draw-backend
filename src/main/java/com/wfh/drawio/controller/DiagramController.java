@@ -300,7 +300,6 @@ public class DiagramController {
      * @return 是否删除成功
      */
     @PostMapping("/delete")
-    @PreAuthorize("(#oldDiagram.spaceId == null) or hasSpaceAuthority(#oldDiagram.spaceId, 'space:diagram:delete') or hasAuthority('admin')")
     @Operation(summary = "删除图表",
             description = """
                     删除指定的图表，并自动释放空间额度。
@@ -339,10 +338,17 @@ public class DiagramController {
         Diagram oldDiagram = diagramService.getById(id);
         ThrowUtils.throwIf(oldDiagram == null, ErrorCode.NOT_FOUND_ERROR);
 
-        // 注解已经做了空间权限校验,这里只需要校验是否是本人或管理员(针对公共空间)
-        if (oldDiagram.getSpaceId() == null) {
+        // 手动校验权限（因为需要先查询 oldDiagram 才能知道 spaceId）
+        Long spaceId = oldDiagram.getSpaceId();
+        if (spaceId != null) {
+            // 私有空间或团队空间: 使用 Spring Security 检查权限
+            if (!spaceRoleService.hasAuthority(user.getId(), spaceId, AuthorityEnums.SPACE_DIAGRAM_DELETE.getValue())
+                    && !userService.isAdmin(user)) {
+                throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无空间删除权限");
+            }
+        } else {
             // 公共空间：仅本人或管理员可删除
-            if (!oldDiagram.getUserId().equals(user.getId()) && !userService.isAdmin(request)) {
+            if (!oldDiagram.getUserId().equals(user.getId()) && !userService.isAdmin(user)) {
                 throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
             }
         }
