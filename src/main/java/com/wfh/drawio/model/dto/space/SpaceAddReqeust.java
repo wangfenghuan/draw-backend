@@ -28,6 +28,12 @@ public class SpaceAddReqeust implements Serializable {
      */
     private Integer spaceLevel;
 
+    /**
+     * 空间类型：0-私有 1-团队
+     */
+    private Integer spaceType;
+
+
 
     /**
      * 创建用户 id

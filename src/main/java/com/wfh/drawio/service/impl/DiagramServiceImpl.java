@@ -114,10 +114,9 @@ public class DiagramServiceImpl extends ServiceImpl<DiagramMapper, Diagram> impl
         RLock lock = redissonClient.getLock(lockKey);
 
         try {
-            boolean isLocked = lock.tryLock(0, 5, TimeUnit.MINUTES);
+            boolean isLocked = lock.tryLock(0, 1, TimeUnit.MINUTES);
             if (isLocked) {
-                log.info("房间 [{}] 抢锁成功，进入冷却期(5min)", roomName);
-            } else {
+                log.info("房间 [{}] 抢锁成功，进入冷却期(1min)", roomName);
             }
             return isLocked;
         } catch (InterruptedException e) {
