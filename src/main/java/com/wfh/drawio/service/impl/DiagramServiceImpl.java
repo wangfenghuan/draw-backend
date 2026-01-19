@@ -471,10 +471,10 @@ public class DiagramServiceImpl extends ServiceImpl<DiagramMapper, Diagram> impl
                 Space space = spaceService.getById(spaceId);
                 ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
 
-                // 权限校验
-                if (!space.getUserId().equals(loginUser.getId())) {
-                    throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限");
-                }
+//                // 权限校验
+//                if (!space.getUserId().equals(loginUser.getId())) {
+//                    throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限");
+//                }
 
                 // 额度校验
                 if (space.getTotalCount() >= space.getMaxCount()) {

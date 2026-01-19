@@ -344,12 +344,15 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
                 .map(SpaceUser::getSpaceId)
                 .collect(Collectors.toList());
 
-        // 3 构建查询条件
+        // 3. 构建查询条件
         QueryWrapper<Space> queryWrapper = new QueryWrapper<>();
         // 只查询团队类型的空间
         queryWrapper.eq("spaceType", SpaceTypeEnum.TEAM.getValue());
         // 只查询用户加入的空间
         queryWrapper.in("id", spaceIds);
+        // 排除用户自己创建的团队空间（只显示他人创建并邀请我加入的团队空间）
+        queryWrapper.ne("userId", userId);
+
         // 4. 添加其他查询条件（如空间名称模糊查询、空间级别等）
         if (spaceQueryRequest != null) {
             String spaceName = spaceQueryRequest.getSpaceName();
