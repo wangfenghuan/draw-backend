@@ -123,6 +123,22 @@ public class SecurityConfig {
     }
 
     /**
+     * 自定义方法安全表达式处理器
+     * 用于支持自定义的权限检查方法（如 hasSpaceAuthority、hasRoomAuthority）
+     */
+    @Bean
+    public MethodSecurityExpressionHandler methodSecurityExpressionHandler(
+            ApplicationContext applicationContext,
+            SpaceSecurityService spaceSecurityService,
+            RoomSecurityService roomSecurityService) {
+        CustomMethodSecurityExpressionHandler handler = new CustomMethodSecurityExpressionHandler(
+                spaceSecurityService,
+                roomSecurityService,
+                applicationContext);
+        return handler;
+    }
+
+    /**
      * CORS 配置源
      * 针对 Session 模式的配置
      */

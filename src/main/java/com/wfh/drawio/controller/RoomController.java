@@ -105,7 +105,7 @@ public class RoomController {
                     - 文件大小（svgSize、pngSize、picSize）
                     - 所属空间信息（spaceId）
                     """)
-    public BaseResponse<DiagramVO> getRoomDiagramVO(long diagramId , long roomId , HttpServletRequest request) {
+    public BaseResponse<DiagramVO> getRoomDiagramVO(@RequestParam long diagramId, @RequestParam long roomId, HttpServletRequest request) {
         ThrowUtils.throwIf(diagramId <= 0 || roomId <= 0, ErrorCode.PARAMS_ERROR);
         // 查询数据库
         Diagram diagram = diagramService.getById(diagramId);

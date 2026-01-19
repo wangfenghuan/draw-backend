@@ -425,12 +425,11 @@ public class SpaceController {
      * 根据空间ID查询图表列表
      * 查询指定空间下的所有图表
      *
-     * @param spaceId 空间ID
      * @param diagramQueryRequest 查询请求（分页参数）
      * @param request HTTP请求
      * @return 图表列表（封装类，分页）
      */
-    @PostMapping("/list/diagrams/{spaceId}")
+    @PostMapping("/list/diagrams")
     @PreAuthorize("hasSpaceAuthority(#spaceId, 'space:diagram:view') or hasAuthority('admin')")
     @Operation(summary = "查询空间下的图表列表",
             description = """
@@ -450,9 +449,9 @@ public class SpaceController {
                     - 每页最多20条（防止爬虫）
                     """)
     public BaseResponse<Page<DiagramVO>> listDiagramsBySpaceId(
-            @PathVariable Long spaceId,
-            @RequestBody(required = false) DiagramQueryRequest diagramQueryRequest,
+            @RequestBody DiagramQueryRequest diagramQueryRequest,
             HttpServletRequest request) {
+        Long spaceId = diagramQueryRequest.getSpaceId();
         ThrowUtils.throwIf(spaceId <= 0, ErrorCode.PARAMS_ERROR, "空间ID不能为空");
 
         // 注解已经做了权限校验

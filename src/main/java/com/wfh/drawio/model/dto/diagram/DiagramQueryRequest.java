@@ -23,6 +23,12 @@ public class DiagramQueryRequest extends PageRequest implements Serializable {
     @Schema(description = "图表ID", example = "123456789")
     private Long id;
 
+    /**
+     * id
+     */
+    @Schema(description = "空间id（可选，空代表查询公共空间）")
+    private Long spaceId;
+
 
     /**
      * 搜索词
@@ -42,12 +48,6 @@ public class DiagramQueryRequest extends PageRequest implements Serializable {
     @Schema(description = "图表代码", example = "DIAGRAM_20240101_001")
     private String diagramCode;
 
-
-    /**
-     * 空间 id
-     */
-    @Schema(description = "空间 id")
-    private Long spaceId;
 
     /**
      * 是否只查询 spaceId 为 null 的数据

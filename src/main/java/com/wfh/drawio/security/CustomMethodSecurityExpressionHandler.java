@@ -5,18 +5,16 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionOperations;
 import org.springframework.security.core.Authentication;
-import org.springframework.context.annotation.Primary;
-import org.springframework.stereotype.Component;
 
 /**
  * 自定义方法安全表达式处理器
  * 负责创建 SpaceSecurityExpressionRoot 实例
  * 支持团队空间权限和协作房间权限检查
  *
+ * 注意：不要添加 @Component 注解，而是在 SecurityConfig 中手动注册 Bean
+ *
  * @author wangfenghuan
  */
-@Primary  // 确保优先使用这个 Bean
-@Component
 public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurityExpressionHandler {
 
     private final SpaceSecurityService spaceSecurityService;
