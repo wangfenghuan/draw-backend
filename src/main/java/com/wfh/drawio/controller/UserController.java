@@ -4,8 +4,8 @@ import cn.hutool.core.util.RandomUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 
-import java.util.List;
-import java.util.Random;
+import java.util.*;
+import java.util.stream.Collectors;
 
 
 import com.wfh.drawio.common.BaseResponse;
@@ -14,9 +14,13 @@ import com.wfh.drawio.common.ErrorCode;
 import com.wfh.drawio.common.ResultUtils;
 import com.wfh.drawio.exception.BusinessException;
 import com.wfh.drawio.exception.ThrowUtils;
+import com.wfh.drawio.mapper.SysRoleMapper;
 import com.wfh.drawio.model.dto.user.*;
+import com.wfh.drawio.model.entity.SysAuthority;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.vo.LoginUserVO;
+import com.wfh.drawio.model.vo.RoleAuthorityFlatVO;
+import com.wfh.drawio.model.vo.RoleWithAuthoritiesVO;
 import com.wfh.drawio.model.vo.UserVO;
 import com.wfh.drawio.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,13 +30,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 /**
  * 用户接口
@@ -289,5 +290,17 @@ public class UserController {
         boolean result = userService.updateById(user);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(true);
+    }
+
+    /**
+     * 查询所有的角色以及其所对应的权限信息
+     * @return
+     */
+    @Operation(summary = "查询所有的角色以及对应的权限")
+    @PreAuthorize("hasAuthority('admin')")
+    @GetMapping("/getAuth/{spaceId}")
+    public BaseResponse< List<RoleWithAuthoritiesVO>> getAllRoleAndAuth(){
+        List<RoleWithAuthoritiesVO> resList = userService.getRoleWithAuthoritiesVOS();
+        return ResultUtils.success(resList);
     }
 }

@@ -6,18 +6,21 @@ import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import com.wfh.drawio.common.ErrorCode;
 import com.wfh.drawio.exception.BusinessException;
+import com.wfh.drawio.mapper.SysRoleMapper;
 import com.wfh.drawio.mapper.UserMapper;
 import com.wfh.drawio.model.dto.user.UserAddRequest;
 import com.wfh.drawio.model.dto.user.UserQueryRequest;
+import com.wfh.drawio.model.entity.SysAuthority;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.enums.UserRoleEnum;
 import com.wfh.drawio.model.vo.LoginUserVO;
+import com.wfh.drawio.model.vo.RoleAuthorityFlatVO;
+import com.wfh.drawio.model.vo.RoleWithAuthoritiesVO;
 import com.wfh.drawio.model.vo.UserVO;
 import com.wfh.drawio.service.UserService;
 import jakarta.annotation.Resource;
@@ -26,6 +29,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -52,6 +56,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Resource
     private AuthenticationManager authenticationManager;
+
+    @Resource
+    private SysRoleMapper sysRoleMapper;
 
     @Resource
     private SecurityContextRepository securityContextRepository;
@@ -288,5 +295,45 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "创建用户失败");
         }
         return user.getId();
+    }
+
+    @NotNull
+    @Override
+    public List<RoleWithAuthoritiesVO> getRoleWithAuthoritiesVOS() {
+        List<RoleAuthorityFlatVO> roleAuthorityFlatVO = sysRoleMapper.selectRoleWithAuthoritiesFlat();
+        // 按照roleId分组
+        Map<Long, List<SysAuthority>> authMap = roleAuthorityFlatVO.stream()
+                .filter(roleAuthorityFlat -> roleAuthorityFlat.getAuthorityId() != null)
+                .collect(Collectors.groupingBy(RoleAuthorityFlatVO::getRoleId, Collectors.mapping(this::toAuthority, Collectors.toList())));
+        List<RoleWithAuthoritiesVO> resList = roleAuthorityFlatVO.stream()
+                .collect(Collectors.toMap(RoleAuthorityFlatVO::getRoleId, this::buildRoleVO, (v1, v2) -> v1, LinkedHashMap::new))
+                .values()
+                .stream()
+                .peek(vo -> vo.setAuthorities(authMap.getOrDefault(vo.getId(), Collections.emptyList())))
+                .toList();
+        return resList;
+    }
+
+    private RoleWithAuthoritiesVO buildRoleVO(RoleAuthorityFlatVO flat) {
+        RoleWithAuthoritiesVO vo = new RoleWithAuthoritiesVO();
+        vo.setId(flat.getRoleId());
+        vo.setRoleName(flat.getRoleName());
+        vo.setDescription(flat.getRoleDescription());
+        vo.setCreateTime(flat.getRoleCreateTime());
+        vo.setUpdateTime(flat.getRoleUpdateTime());
+        return vo;
+    }
+
+    private SysAuthority toAuthority(RoleAuthorityFlatVO flat) {
+        SysAuthority auth = new SysAuthority();
+        auth.setId(flat.getAuthorityId());
+        auth.setParentId(flat.getParentId());
+        auth.setName(flat.getAuthorityName());
+        auth.setDescription(flat.getAuthorityDescription());
+        auth.setAuthority(flat.getAuthority());
+        auth.setType(flat.getType());
+        auth.setCreateTime(flat.getAuthorityCreateTime());
+        auth.setUpdateTime(flat.getAuthorityUpdateTime());
+        return auth;
     }
 }

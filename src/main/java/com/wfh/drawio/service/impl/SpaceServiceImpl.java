@@ -1,6 +1,7 @@
 package com.wfh.drawio.service.impl;
 
 import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -324,7 +325,7 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
 
     /**
      * 分页获取用户加入的空间列表
-     *
+     * 用户加入的只能是团队空间
      * @param spaceQueryRequest 查询请求
      * @param userId 用户ID
      * @return 空间列表（分页）
@@ -345,13 +346,13 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
                 .collect(Collectors.toList());
 
         // 3. 构建查询条件
-        QueryWrapper<Space> queryWrapper = new QueryWrapper<>();
+        LambdaQueryWrapper<Space> queryWrapper = new LambdaQueryWrapper<>();
         // 只查询团队类型的空间
-        queryWrapper.eq("spaceType", SpaceTypeEnum.TEAM.getValue());
+        queryWrapper.eq(Space::getSpaceType, SpaceTypeEnum.TEAM.getValue());
         // 只查询用户加入的空间
-        queryWrapper.in("id", spaceIds);
+        queryWrapper.in(Space::getId, spaceIds);
         // 排除用户自己创建的团队空间（只显示他人创建并邀请我加入的团队空间）
-        queryWrapper.ne("userId", userId);
+        queryWrapper.ne(Space::getUserId, userId);
 
         // 4. 添加其他查询条件（如空间名称模糊查询、空间级别等）
         if (spaceQueryRequest != null) {
@@ -360,12 +361,11 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
             String sortField = spaceQueryRequest.getSortField();
             String sortOrder = spaceQueryRequest.getSortOrder();
             // 模糊查询
-            queryWrapper.like(StrUtil.isNotBlank(spaceName), "spaceName", spaceName);
+            queryWrapper.like(StrUtil.isNotBlank(spaceName), Space::getSpaceName, spaceName);
             // 精确查询
-            queryWrapper.eq(ObjectUtils.isNotEmpty(spaceLevel), "spaceLevel", spaceLevel);
+            queryWrapper.eq(ObjectUtils.isNotEmpty(spaceLevel), Space::getSpaceLevel, spaceLevel);
             // 排序
-            queryWrapper.orderBy(StrUtil.isNotBlank(sortField),
-                    "asc".equals(sortOrder), sortField);
+            queryWrapper.orderBy(StrUtil.isNotBlank(sortField), "asc".equals(sortOrder), Space::getEditTime);
         }
         // 5. 分页查询
         long current = spaceQueryRequest != null ? spaceQueryRequest.getCurrent() : 1;

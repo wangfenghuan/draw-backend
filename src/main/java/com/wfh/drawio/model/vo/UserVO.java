@@ -1,8 +1,12 @@
 package com.wfh.drawio.model.vo;
 
+import com.wfh.drawio.model.entity.SysAuthority;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
+
 import lombok.Data;
 
 /**
@@ -44,6 +48,11 @@ public class UserVO implements Serializable {
      */
     @Schema(description = "用户角色", example = "user")
     private String userRole;
+
+    /**
+     * 用户权限
+     */
+    private List<SysAuthority> authorities = new ArrayList<>();
 
     /**
      * 创建时间

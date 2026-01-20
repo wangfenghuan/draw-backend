@@ -2,6 +2,10 @@ package com.wfh.drawio.mapper;
 
 import com.wfh.drawio.model.entity.SysRole;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.wfh.drawio.model.vo.RoleAuthorityFlatVO;
+import org.apache.ibatis.annotations.Select;
+
+import java.util.List;
 
 /**
 * @author fenghuanwang
@@ -10,6 +14,33 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 * @Entity com.wfh.drawio.model.entity.SysRole
 */
 public interface SysRoleMapper extends BaseMapper<SysRole> {
+
+    /**
+     * 查询扁平化角色权限列表
+     * @return
+     */
+    @Select("""
+        SELECT
+            r.id AS roleId,
+            r.name AS roleName,
+            r.description AS roleDescription,
+            r.createTime AS roleCreateTime,
+            r.updateTime AS roleUpdateTime,
+            a.id AS authorityId,
+            a.parentId,
+            a.name AS authorityName,
+            a.description AS authorityDescription,
+            a.resource,
+            a.type,
+            a.createTime AS authorityCreateTime,
+            a.updateTime AS authorityUpdateTime
+        FROM sys_role r
+        LEFT JOIN sys_role_authority ra ON r.id = ra.role_id
+        LEFT JOIN sys_authority a ON ra.authority_id = a.id AND a.isDelete = 0
+        WHERE r.isDelete = 0
+        ORDER BY r.id, a.id
+        """)
+    List<RoleAuthorityFlatVO> selectRoleWithAuthoritiesFlat();
 
 }
 

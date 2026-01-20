@@ -1,8 +1,12 @@
 package com.wfh.drawio.model.vo;
 
+import com.wfh.drawio.model.entity.SysAuthority;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
+
 import lombok.Data;
 
 /**
@@ -56,6 +60,11 @@ public class LoginUserVO implements Serializable {
      */
     @Schema(description = "更新时间", example = "2024-01-01 10:00:00")
     private Date updateTime;
+
+    /**
+     * 用户权限
+     */
+    private List<SysAuthority> authorities = new ArrayList<>();
 
     private static final long serialVersionUID = 1L;
 }

@@ -6,9 +6,11 @@ import com.wfh.drawio.model.dto.user.UserAddRequest;
 import com.wfh.drawio.model.dto.user.UserQueryRequest;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.vo.LoginUserVO;
+import com.wfh.drawio.model.vo.RoleWithAuthoritiesVO;
 import com.wfh.drawio.model.vo.UserVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 
@@ -120,4 +122,6 @@ public interface UserService extends IService<User> {
      */
     Long addUserByAdmin(UserAddRequest userAddRequest);
 
+    @NotNull
+    List<RoleWithAuthoritiesVO> getRoleWithAuthoritiesVOS();
 }
