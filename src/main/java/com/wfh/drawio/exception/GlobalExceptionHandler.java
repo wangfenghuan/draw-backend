@@ -5,6 +5,7 @@ import com.wfh.drawio.common.BaseResponse;
 import com.wfh.drawio.common.ErrorCode;
 import com.wfh.drawio.common.ResultUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -31,9 +32,8 @@ public class GlobalExceptionHandler {
         return ResultUtils.error(ErrorCode.SYSTEM_ERROR, "系统错误");
     }
 
-    @ExceptionHandler(AuthenticationException.class) // import org.springframework.security.core.AuthenticationException
+    @ExceptionHandler(AuthorizationDeniedException.class)
     public BaseResponse<?> handleAuthenticationException(AuthenticationException e) {
-        // 或者是 ErrorCode.PARAMS_ERROR，看你想报什么错
-        return ResultUtils.error(ErrorCode.OPERATION_ERROR, "账号或密码错误");
+        return ResultUtils.error(ErrorCode.OPERATION_ERROR, "无权限");
     }
 }

@@ -124,4 +124,22 @@ public interface UserService extends IService<User> {
 
     @NotNull
     List<RoleWithAuthoritiesVO> getRoleWithAuthoritiesVOS();
+
+    /**
+     * 修改用户角色
+     *
+     * @param userId 用户ID
+     * @param roleIds 角色ID列表
+     * @return 是否成功
+     */
+    boolean updateUserRoles(Long userId, List<Long> roleIds);
+
+    /**
+     * 修改角色权限
+     *
+     * @param roleId 角色ID
+     * @param authorityIds 权限ID列表
+     * @return 是否成功
+     */
+    boolean updateRoleAuthorities(Long roleId, List<Long> authorityIds);
 }

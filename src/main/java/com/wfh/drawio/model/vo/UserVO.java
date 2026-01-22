@@ -52,7 +52,7 @@ public class UserVO implements Serializable {
     /**
      * 用户权限
      */
-    private List<SysAuthority> authorities = new ArrayList<>();
+    private List<SysAuthority> authorities;
 
     /**
      * 创建时间

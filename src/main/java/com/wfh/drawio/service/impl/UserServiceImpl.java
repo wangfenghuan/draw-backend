@@ -16,12 +16,16 @@ import com.wfh.drawio.mapper.UserMapper;
 import com.wfh.drawio.model.dto.user.UserAddRequest;
 import com.wfh.drawio.model.dto.user.UserQueryRequest;
 import com.wfh.drawio.model.entity.SysAuthority;
+import com.wfh.drawio.model.entity.SysRoleAuthorityRel;
+import com.wfh.drawio.model.entity.SysUserRoleRel;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.enums.UserRoleEnum;
 import com.wfh.drawio.model.vo.LoginUserVO;
 import com.wfh.drawio.model.vo.RoleAuthorityFlatVO;
 import com.wfh.drawio.model.vo.RoleWithAuthoritiesVO;
 import com.wfh.drawio.model.vo.UserVO;
+import com.wfh.drawio.service.SysRoleAuthorityRelService;
+import com.wfh.drawio.service.SysUserRoleRelService;
 import com.wfh.drawio.service.UserService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
@@ -335,5 +339,87 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         auth.setCreateTime(flat.getAuthorityCreateTime());
         auth.setUpdateTime(flat.getAuthorityUpdateTime());
         return auth;
+    }
+
+    @Resource
+    private SysUserRoleRelService sysUserRoleRelService;
+
+    @Resource
+    private SysRoleAuthorityRelService sysRoleAuthorityRelService;
+
+    @Override
+    public boolean updateUserRoles(Long userId, List<Long> roleIds) {
+        // 1. 校验参数
+        if (userId == null || userId <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户ID不能为空");
+        }
+        if (roleIds == null) {
+            roleIds = new ArrayList<>();
+        }
+
+        // 2. 查询用户是否存在
+        User user = this.getById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "用户不存在");
+        }
+
+        // 3. 删除用户原有的所有角色关联
+        QueryWrapper<SysUserRoleRel> deleteWrapper =
+            new QueryWrapper<>();
+        deleteWrapper.eq("userId", userId);
+        sysUserRoleRelService.remove(deleteWrapper);
+
+        // 4. 如果没有新角色，直接返回
+        if (CollUtil.isEmpty(roleIds)) {
+            return true;
+        }
+
+        // 5. 批量插入新的角色关联
+        List<SysUserRoleRel> userRoleList = new ArrayList<>();
+        for (Long roleId : roleIds) {
+            SysUserRoleRel userRoleRel = new com.wfh.drawio.model.entity.SysUserRoleRel();
+            userRoleRel.setUserId(userId);
+            userRoleRel.setRoleId(roleId);
+            userRoleList.add(userRoleRel);
+        }
+
+        return sysUserRoleRelService.saveBatch(userRoleList);
+    }
+
+    @Override
+    public boolean updateRoleAuthorities(Long roleId, List<Long> authorityIds) {
+        // 1. 校验参数
+        if (roleId == null || roleId <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "角色ID不能为空");
+        }
+        if (authorityIds == null) {
+            authorityIds = new ArrayList<>();
+        }
+
+        // 2. 查询角色是否存在
+        com.wfh.drawio.model.entity.SysRole role = sysRoleMapper.selectById(roleId);
+        if (role == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "角色不存在");
+        }
+
+        // 3. 删除角色原有的所有权限关联
+        QueryWrapper<SysRoleAuthorityRel> deleteWrapper =
+            new QueryWrapper<>();
+        deleteWrapper.eq("roleId", roleId);
+        sysRoleAuthorityRelService.remove(deleteWrapper);
+
+        // 4. 如果没有新权限，直接返回
+        if (CollUtil.isEmpty(authorityIds)) {
+            return true;
+        }
+        // 5. 批量插入新的权限关联
+        List<SysRoleAuthorityRel> roleAuthList = new ArrayList<>();
+        for (Long authorityId : authorityIds) {
+            SysRoleAuthorityRel roleAuthRel = new com.wfh.drawio.model.entity.SysRoleAuthorityRel();
+            roleAuthRel.setRoleId(roleId);
+            roleAuthRel.setAuthorityId(authorityId);
+            roleAuthList.add(roleAuthRel);
+        }
+        return sysRoleAuthorityRelService.saveBatch(roleAuthList);
     }
 }

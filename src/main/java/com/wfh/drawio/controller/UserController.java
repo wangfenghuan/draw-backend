@@ -298,9 +298,48 @@ public class UserController {
      */
     @Operation(summary = "查询所有的角色以及对应的权限")
     @PreAuthorize("hasAuthority('admin')")
-    @GetMapping("/getAuth/{spaceId}")
+    @GetMapping("/getAuth")
     public BaseResponse< List<RoleWithAuthoritiesVO>> getAllRoleAndAuth(){
         List<RoleWithAuthoritiesVO> resList = userService.getRoleWithAuthoritiesVOS();
         return ResultUtils.success(resList);
+    }
+
+    /**
+     * 修改用户角色
+     *
+     * @param userRoleUpdateRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/update/roles")
+    @Operation(summary = "修改用户角色")
+    @PreAuthorize("hasAuthority('admin')")
+    public BaseResponse<Boolean> updateUserRoles(@RequestBody UserRoleUpdateRequest userRoleUpdateRequest,
+                                                  HttpServletRequest request) {
+        if (userRoleUpdateRequest == null || userRoleUpdateRequest.getUserId() == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        boolean result = userService.updateUserRoles(userRoleUpdateRequest.getUserId(), userRoleUpdateRequest.getRoleIds());
+        return ResultUtils.success(result);
+    }
+
+    /**
+     * 修改角色权限
+     *
+     * @param roleAuthorityUpdateRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/role/update/authorities")
+    @Operation(summary = "修改角色权限")
+    @PreAuthorize("hasAuthority('admin')")
+    public BaseResponse<Boolean> updateRoleAuthorities(@RequestBody RoleAuthorityUpdateRequest roleAuthorityUpdateRequest,
+                                                         HttpServletRequest request) {
+        if (roleAuthorityUpdateRequest == null || roleAuthorityUpdateRequest.getRoleId() == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        boolean result = userService.updateRoleAuthorities(roleAuthorityUpdateRequest.getRoleId(),
+                roleAuthorityUpdateRequest.getAuthorityIds());
+        return ResultUtils.success(result);
     }
 }

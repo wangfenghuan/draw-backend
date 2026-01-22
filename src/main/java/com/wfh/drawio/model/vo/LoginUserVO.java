@@ -64,7 +64,7 @@ public class LoginUserVO implements Serializable {
     /**
      * 用户权限
      */
-    private List<SysAuthority> authorities = new ArrayList<>();
+    private List<SysAuthority> authorities;
 
     private static final long serialVersionUID = 1L;
 }

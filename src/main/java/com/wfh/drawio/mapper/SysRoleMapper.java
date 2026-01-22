@@ -35,8 +35,8 @@ public interface SysRoleMapper extends BaseMapper<SysRole> {
             a.createTime AS authorityCreateTime,
             a.updateTime AS authorityUpdateTime
         FROM sys_role r
-        LEFT JOIN sys_role_authority ra ON r.id = ra.role_id
-        LEFT JOIN sys_authority a ON ra.authority_id = a.id AND a.isDelete = 0
+        LEFT JOIN sys_role_authority_rel ra ON r.id = ra.roleId
+        LEFT JOIN sys_authority a ON ra.authorityId = a.id AND a.isDelete = 0
         WHERE r.isDelete = 0
         ORDER BY r.id, a.id
         """)

@@ -97,6 +97,7 @@ public class SpaceUserController {
                     - 团队空间：需要有空间用户管理权限
                     - 管理员可以移除任何成员
                     """)
+    @PreAuthorize("@spaceSecurityService.hasSpaceAuthority(#deleteRequest.id, 'space:user:manage') or hasAuthority('admin')")
     public BaseResponse<Boolean> deleteSpaceUser(@RequestBody DeleteRequest deleteRequest,
                                                  HttpServletRequest request) {
         if (deleteRequest == null || deleteRequest.getId() <= 0) {

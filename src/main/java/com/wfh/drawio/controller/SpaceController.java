@@ -217,6 +217,7 @@ public class SpaceController {
      * @return 空间详情（封装类）
      */
     @GetMapping("/get/vo")
+    @PreAuthorize("@spaceSecurityService.hasSpaceAuthority(#id, 'space:diagram:view') or hasAuthority('admin')")
     @Operation(summary = "获取空间详情",
             description = """
                     根据ID获取空间的详细信息。
@@ -234,11 +235,6 @@ public class SpaceController {
         // 查询数据库
         Space space = spaceService.getById(id);
         ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR);
-        // 权限校验
-        User loginUser = userService.getLoginUser(request);
-        if (!space.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
-        }
         // 获取封装类
         return ResultUtils.success(spaceService.getSpaceVO(space, request));
     }
