@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 
 import com.wfh.drawio.common.BaseResponse;
@@ -14,12 +13,9 @@ import com.wfh.drawio.common.ErrorCode;
 import com.wfh.drawio.common.ResultUtils;
 import com.wfh.drawio.exception.BusinessException;
 import com.wfh.drawio.exception.ThrowUtils;
-import com.wfh.drawio.mapper.SysRoleMapper;
 import com.wfh.drawio.model.dto.user.*;
-import com.wfh.drawio.model.entity.SysAuthority;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.vo.LoginUserVO;
-import com.wfh.drawio.model.vo.RoleAuthorityFlatVO;
 import com.wfh.drawio.model.vo.RoleWithAuthoritiesVO;
 import com.wfh.drawio.model.vo.UserVO;
 import com.wfh.drawio.service.UserService;
@@ -30,7 +26,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 
 import org.apache.commons.lang3.StringUtils;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
