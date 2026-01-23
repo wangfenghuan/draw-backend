@@ -8,11 +8,12 @@
             <id property="id" column="id" />
             <result property="roomName" column="roomName" />
         <result property="roomId" column="roomId" />
+        <result property="objectKey" column="objectKey" />
             <result property="lastUpdateId" column="lastUpdateId" />
             <result property="createTime" column="createTime" />
     </resultMap>
 
     <sql id="Base_Column_List">
-        id,roomName,lastUpdateId,createTime,snapshotData,roomId
+        id,roomName,lastUpdateId,createTime,snapshotData,roomId,objectKey
     </sql>
 </mapper>

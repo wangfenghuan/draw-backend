@@ -12,11 +12,13 @@ import com.wfh.drawio.model.entity.SpaceUser;
 import com.wfh.drawio.model.enums.AuthorityEnums;
 import com.wfh.drawio.model.enums.SpaceTypeEnum;
 import com.wfh.drawio.service.SpaceService;
+import com.wfh.drawio.ws.service.CollaborationService;
 import com.wfh.drawio.ws.service.RoomUpdateBatchService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
@@ -25,10 +27,18 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.BinaryWebSocketHandler;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -48,6 +58,9 @@ import java.util.concurrent.CopyOnWriteArraySet;
 @Component
 public class YjsHandler extends BinaryWebSocketHandler {
 
+    @Resource
+    private CollaborationService collaborationService;
+
     /**
      * 房间映射
      */
@@ -56,19 +69,12 @@ public class YjsHandler extends BinaryWebSocketHandler {
     /**
      * Yjs 操作码定义
      */
-    private static final byte OP_SYNC = 0x00;        // 同步数据
-    private static final byte OP_POINTER = 0x01;     // 鼠标移动 (Awareness)
-    private static final byte OP_UPDATE = 0x02;      // Yjs 更新数据
-
+    private static final byte OP_POINTER = 0x01;
+    private static final byte OP_UPDATE = 0x02;
 
     @Resource
     private RoomSnapshotsMapper roomSnapshotsMapper;
 
-    @Resource
-    private RoomUpdatesMapper roomUpdatesMapper;
-
-    @Resource
-    private RoomUpdateBatchService batchService;
 
     @Resource
     private DiagramRoomMapper diagramRoomMapper;
@@ -78,6 +84,13 @@ public class YjsHandler extends BinaryWebSocketHandler {
 
     @Resource
     private SpaceUserMapper spaceUserMapper;
+
+
+    @Resource
+    private S3Presigner s3Presigner;
+
+    @Value("${rustfs.client.bucket-name}")
+    private String bucketName;
 
     /**
      * 连接建立之后
@@ -175,37 +188,45 @@ public class YjsHandler extends BinaryWebSocketHandler {
 
         log.info("✅ 用户加入协作房间: {}, 当前房间人数: {}", roomName, roomSession.get(roomName).size());
 
-        // 从数据库重建历史
-        RoomSnapshots roomSnapshots = roomSnapshotsMapper.selectLatestByRoom(roomName);
-        long lastUpdatedId = 0;
-        // 如果存在快照，先发送快照数据
-        if (roomSnapshots != null) {
-            if (roomSnapshots.getSnapshotData() != null) {
-                // 发送快照时添加 OP_SYNC 前缀
-                byte[] snapshotData = roomSnapshots.getSnapshotData();
-                byte[] payload = new byte[1 + snapshotData.length];
-                payload[0] = OP_SYNC;
-                System.arraycopy(snapshotData, 0, payload, 1, snapshotData.length);
-                session.sendMessage(new BinaryMessage(payload));
-            }
-            // 记录快照截止到的id，后面只查询比这个id更晚的增量
-            lastUpdatedId = roomSnapshots.getLastUpdateId();
-        }
-        // 获取快照之后的增量数据
-        List<RoomUpdates> roomUpdates = roomUpdatesMapper.selectByRoomAndIdAfter(roomName, lastUpdatedId);
-        // 逐条发送增量
-        if (roomUpdates != null) {
-            for (RoomUpdates roomUpdate : roomUpdates) {
-                // 发送增量时添加 OP_UPDATE 前缀
-                byte[] updateData = roomUpdate.getUpdateData();
-                byte[] payload = new byte[1 + updateData.length];
-                payload[0] = OP_UPDATE;
-                System.arraycopy(updateData, 0, payload, 1, updateData.length);
-                session.sendMessage(new BinaryMessage(payload));
-            }
-        }
-        log.info("用户加入，加载了 {} 个快照和 {} 条增量", roomSnapshots != null ? 1 : 0, roomUpdates.size());
+        // --- 阶段一：加载快照 (Base) ---
+        RoomSnapshots snapshot = roomSnapshotsMapper.selectLatestByRoom( String.valueOf(roomId) );
+        if (snapshot != null && snapshot.getObjectKey() != null) {
+            try {
+                // 1. 构造获取对象的请求
+                GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                        .bucket(bucketName)
+                        .key(snapshot.getObjectKey())
+                        .build();
 
+                // 2. 构造预签名请求 (有效期 60 分钟)
+                GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                        .signatureDuration(Duration.ofMinutes(60))
+                        .getObjectRequest(getObjectRequest)
+                        .build();
+
+                // 3. 生成 URL
+                PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
+                String url = presignedRequest.url().toString();
+
+                // 4. 发送给前端
+                session.sendMessage(new TextMessage("{\"type\":\"snapshot\",\"url\":\"" + url + "\"}"));
+                log.debug("📥 发送快照 URL 给房间 {}", roomId);
+
+            } catch (Exception e) {
+                log.error("生成 S3 预签名 URL 失败，roomId: {}, objectKey: {}", roomId, snapshot.getObjectKey(), e);
+                // 这里可以选择不中断流程，只是让前端加载不到底图，或者报错断开
+            }
+        } else {
+            log.info("ℹ️ 房间 {} 暂无快照记录，从零开始加载", roomId);
+        }
+
+        // --- 阶段二：加载增量 (Delta) ---
+        // 从 Redis List 读取自上次快照以来的所有 Updates
+        List<byte[]> updates = collaborationService.getBufferedUpdates(String.valueOf(roomId));
+        for (byte[] update : updates) {
+            // 透传二进制
+            session.sendMessage(new BinaryMessage(update));
+        }
         // 广播当前在线人数
         broadcastUserCount(roomName);
     }
@@ -250,24 +271,7 @@ public class YjsHandler extends BinaryWebSocketHandler {
             case OP_UPDATE -> {
                 // Yjs 更新消息，需要存储并广播
                 if (canEdit) {
-                    // 去掉 OpCode，只存储纯 Yjs 更新数据
-                    byte[] yjsUpdate = Arrays.copyOfRange(payload, 1, payload.length);
-
-                    // 持久化更新数据
-                    RoomUpdates roomUpdates = new RoomUpdates();
-                    roomUpdates.setUpdateData(yjsUpdate);
-                    try {
-                        // 尝试转换为 Long，如果失败则使用原始 roomName
-                        roomUpdates.setRoomId(Long.valueOf(roomName));
-                    } catch (NumberFormatException e) {
-                        log.warn("⚠️ 房间 ID {} 无法转换为 Long，使用字符串处理", roomName);
-                        // 如果需要支持字符串 roomName，需要修改 RoomUpdates 实体
-                        // 暂时跳过存储
-                    }
-                    batchService.addUpdate(roomUpdates);
-
-                    // 广播给其他用户（带 OpCode）
-                    broadcastBinaryToOthers(roomName, payload, session.getId());
+                    collaborationService.handleIncomingMessage(roomName, session.getId(), message.getPayload().array());
                 } else {
                     log.warn("⛔ 拦截无权编辑操作: user={}", principal != null ? principal.getName() : "anonymous");
                 }
@@ -316,25 +320,49 @@ public class YjsHandler extends BinaryWebSocketHandler {
 
     /**
      * 广播二进制消息给房间内其他用户
-     * @param roomName
-     * @param payload
-     * @param senderId
+     * 使用与 Redis Pub/Sub 相同的消息格式：[idLen: 1 byte][senderId: N bytes][payload]
+     *
+     * @param roomName 房间名称
+     * @param payload 原始消息载荷（如 [0x02][Yjs Update]）
+     * @param senderId 发送者会话ID
      */
     private void broadcastBinaryToOthers(String roomName, byte[] payload, String senderId) {
         Set<WebSocketSession> sessions = roomSession.get(roomName);
-        if (sessions != null) {
-            log.info("准备广播给房间: {} 的其他 {} 个用户", roomName, sessions.size() - 1);
+        if (sessions == null || sessions.isEmpty()) {
+            return;
+        }
+
+        try {
+            // 构造与 Redis Pub/Sub 相同的消息格式
+            byte[] idBytes = senderId.getBytes(StandardCharsets.UTF_8);
+            if (idBytes.length > 255) {
+                log.warn("⚠️ 发送者 ID 过长: {}, 长度: {}", senderId, idBytes.length);
+                return;
+            }
+
+            byte idLen = (byte) idBytes.length;
+            ByteBuffer buffer = ByteBuffer.allocate(1 + idLen + payload.length);
+            buffer.put(idLen);           // 第1字节：senderId 长度
+            buffer.put(idBytes);         // 第2-N字节：senderId
+            buffer.put(payload);         // 剩余字节：原始消息
+
+            byte[] formattedPayload = buffer.array();
+
+            // 广播给房间内其他用户
             for (WebSocketSession webSocketSession : sessions) {
-                // 排除自己，只发给别人
                 if (webSocketSession.isOpen() && !webSocketSession.getId().equals(senderId)) {
                     try {
-                        webSocketSession.sendMessage(new BinaryMessage(payload));
-                        log.info("已广播给: {}", webSocketSession.getId());
+                        webSocketSession.sendMessage(new BinaryMessage(formattedPayload));
                     } catch (IOException e) {
-                        log.error("❌ 广播失败: {}", e.getMessage());
+                        log.error("❌ 广播消息失败: {}", e.getMessage());
                     }
                 }
             }
+
+            log.debug("📡 房间 {} 本地广播完成，接收者数: {}", roomName, sessions.size() - 1);
+
+        } catch (Exception e) {
+            log.error("❌ 构造广播消息失败: room={}, sender={}", roomName, senderId, e);
         }
     }
 
@@ -384,6 +412,40 @@ public class YjsHandler extends BinaryWebSocketHandler {
             }
         }
         log.info("📤 用户数消息已发送给 {} 人", successCount);
+    }
+
+    /**
+     * 分发消息给房间内的本地用户（用于 Redis Pub/Sub 消息转发）
+     * 注意：传入的消息必须已经是完整格式：[idLen][senderId][payload]
+     *
+     * @param roomId 房间ID
+     * @param senderId 发送者ID（用于排除发送者）
+     * @param formattedMessage 已格式化的完整消息（包含前缀）
+     */
+    public void dispatchToLocalUsers(String roomId, String senderId, byte[] formattedMessage) {
+        Set<WebSocketSession> sessions = roomSession.get(roomId);
+        if (sessions == null || sessions.isEmpty()) {
+            return;
+        }
+
+        BinaryMessage message = new BinaryMessage(formattedMessage);
+        int successCount = 0;
+
+        for (WebSocketSession s : sessions) {
+            // 排除发送者自己
+            if (s.isOpen() && !s.getId().equals(senderId)) {
+                try {
+                    s.sendMessage(message);
+                    successCount++;
+                } catch (IOException e) {
+                    log.error("❌ 发送消息失败: {}", e.getMessage());
+                }
+            }
+        }
+
+        if (successCount > 0) {
+            log.debug("📤 房间 {} 转发消息给 {} 个本地用户", roomId, successCount);
+        }
     }
 
     /**

@@ -31,6 +31,12 @@ public class RoomSnapshots {
     private Long roomName;
 
     /**
+     * 快照地址
+     */
+    @Schema(description = "快照地址")
+    private String objectKey;
+
+    /**
      * 该快照包含了截止到哪个update_id的数据
      */
     @Schema(description = "该快照包含了截止到哪个update_id的数据", example = "5000")
