@@ -104,7 +104,7 @@ public class DiagramServiceImpl extends ServiceImpl<DiagramMapper, Diagram> impl
     public void init() {
         diagramsPageCache = Caffeine.newBuilder()
                 .maximumSize(10_000)
-                .expireAfterWrite(RandomUtil.randomInt(10, 30), TimeUnit.MINUTES)
+                .expireAfterWrite(RandomUtil.randomInt(1, 5), TimeUnit.MINUTES)
                 .build();
     }
 
@@ -554,7 +554,7 @@ public class DiagramServiceImpl extends ServiceImpl<DiagramMapper, Diagram> impl
                 resPage.setTotal(resultPage.getTotal());
                 String jsonStr = JSONUtil.toJsonStr(resPage);
                 // 设置Redis缓存
-                stringRedisTemplate.opsForValue().set(redisKey, jsonStr, RandomUtil.randomInt(10, 40), TimeUnit.MINUTES);
+                stringRedisTemplate.opsForValue().set(redisKey, jsonStr, RandomUtil.randomInt(1, 5), TimeUnit.MINUTES);
                 // 设置Caffeine缓存
                 diagramsPageCache.put(cacheKey, resPage);
                 return resPage;
@@ -580,15 +580,15 @@ public class DiagramServiceImpl extends ServiceImpl<DiagramMapper, Diagram> impl
 
         StrategyContext strategyContext = new StrategyContext();
         switch (type) {
-            case "svg":
+            case "SVG":
                 strategyContext.setDownloadStrategy(svgDownloadStrategy);
                 strategyContext.execDownload(diagramId, fileName, response);
                 break;
-            case "png":
+            case "PNG":
                 strategyContext.setDownloadStrategy(pngDownloadStrategy);
                 strategyContext.execDownload(diagramId, fileName, response);
                 break;
-            case "xml":
+            case "XML":
                 strategyContext.setDownloadStrategy(xmlDownloadStrategy);
                 strategyContext.execDownload(diagramId, fileName, response);
                 break;

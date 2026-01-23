@@ -5,13 +5,12 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.wfh.drawio.common.ErrorCode;
 import com.wfh.drawio.exception.BusinessException;
 import com.wfh.drawio.mapper.SysRoleMapper;
+import com.wfh.drawio.model.entity.Space;
 import com.wfh.drawio.model.entity.SysAuthority;
 import com.wfh.drawio.model.entity.SysRole;
 import com.wfh.drawio.model.entity.SysRoleAuthorityRel;
 import com.wfh.drawio.model.enums.RoleEnums;
-import com.wfh.drawio.service.SpaceRoleService;
-import com.wfh.drawio.service.SpaceUserService;
-import com.wfh.drawio.service.SysRoleAuthorityRelService;
+import com.wfh.drawio.service.*;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -39,7 +38,10 @@ public class SpaceRoleServiceImpl implements SpaceRoleService {
     private SpaceUserService spaceUserService;
 
     @Resource
-    private com.wfh.drawio.service.SysAuthorityService sysAuthorityService;
+    private SpaceService spaceService;
+
+    @Resource
+    private SysAuthorityService sysAuthorityService;
 
     @Override
     public List<SysAuthority> getAuthoritiesBySpaceRole(String spaceRole) {
@@ -103,23 +105,32 @@ public class SpaceRoleServiceImpl implements SpaceRoleService {
         if (ObjUtil.hasEmpty(userId, spaceId, authority)) {
             return false;
         }
+        // 查询该空间是团队还是私有还是公共
+        Space space = spaceService.getById(spaceId);
+        Integer spaceType = space.getSpaceType();
+        // 如果是团队空间才走团队空间的权限校验逻辑
+        if (spaceType == 1){
+            // 查询用户在空间中的角色
+            var spaceUser = spaceUserService.lambdaQuery()
+                    .eq(com.wfh.drawio.model.entity.SpaceUser::getSpaceId, spaceId)
+                    .eq(com.wfh.drawio.model.entity.SpaceUser::getUserId, userId)
+                    .one();
 
-        // 查询用户在空间中的角色
-        var spaceUser = spaceUserService.lambdaQuery()
-                .eq(com.wfh.drawio.model.entity.SpaceUser::getSpaceId, spaceId)
-                .eq(com.wfh.drawio.model.entity.SpaceUser::getUserId, userId)
-                .one();
+            if (spaceUser == null) {
+                return false;
+            }
 
-        if (spaceUser == null) {
-            return false;
+            // 获取角色对应的权限列表
+            List<SysAuthority> authorities = getAuthoritiesBySpaceRole(spaceUser.getSpaceRole());
+
+            // 检查是否包含指定权限
+            return authorities.stream()
+                    .anyMatch(auth -> auth.getAuthority().equals(authority));
+        } else if (spaceType == 0) {
+            // 私有空间，校验是否是创建者即可
+            return space.getUserId().equals(userId);
         }
-
-        // 获取角色对应的权限列表
-        List<SysAuthority> authorities = getAuthoritiesBySpaceRole(spaceUser.getSpaceRole());
-
-        // 检查是否包含指定权限
-        return authorities.stream()
-                .anyMatch(auth -> auth.getAuthority().equals(authority));
+        return true;
     }
 
     @Override
