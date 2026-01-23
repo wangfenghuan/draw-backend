@@ -1,24 +1,16 @@
 package com.wfh.drawio.ws.handler;
 
-import com.wfh.drawio.mapper.DiagramRoomMapper;
 import com.wfh.drawio.mapper.RoomSnapshotsMapper;
 import com.wfh.drawio.mapper.RoomUpdatesMapper;
-import com.wfh.drawio.mapper.SpaceUserMapper;
-import com.wfh.drawio.model.entity.DiagramRoom;
 import com.wfh.drawio.model.entity.RoomSnapshots;
 import com.wfh.drawio.model.entity.RoomUpdates;
-import com.wfh.drawio.model.entity.Space;
-import com.wfh.drawio.model.entity.SpaceUser;
-import com.wfh.drawio.model.enums.AuthorityEnums;
-import com.wfh.drawio.model.enums.SpaceTypeEnum;
-import com.wfh.drawio.service.SpaceService;
+import com.wfh.drawio.model.entity.User;
+import com.wfh.drawio.security.RoomSecurityService;
 import com.wfh.drawio.ws.service.RoomUpdateBatchService;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.CloseStatus;
@@ -30,7 +22,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.security.Principal;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -71,13 +62,7 @@ public class YjsHandler extends BinaryWebSocketHandler {
     private RoomUpdateBatchService batchService;
 
     @Resource
-    private DiagramRoomMapper diagramRoomMapper;
-
-    @Resource
-    private SpaceService spaceService;
-
-    @Resource
-    private SpaceUserMapper spaceUserMapper;
+    private RoomSecurityService roomSecurityService;
 
     /**
      * 连接建立之后
@@ -86,94 +71,37 @@ public class YjsHandler extends BinaryWebSocketHandler {
      */
     @Override
     public void afterConnectionEstablished(@NotNull WebSocketSession session) throws Exception {
-        // 基础权限校验
-        if (!hasPermission(session.getPrincipal(), AuthorityEnums.ROOM_DIAGRAM_VIEW.getValue())) {
-            session.close(CloseStatus.POLICY_VIOLATION);
-            log.warn("❌ 用户无 {} 权限", AuthorityEnums.ROOM_DIAGRAM_VIEW.getValue());
-            return;
-        }
-
         // 获取房间ID
         String roomName = getRoomName(session);
-        Long roomId;
-        try {
-            roomId = Long.valueOf(roomName);
-        } catch (NumberFormatException e) {
-            session.close(CloseStatus.NOT_ACCEPTABLE);
-            log.warn("❌ 房间ID格式错误: {}", roomName);
-            return;
-        }
 
-        // 查询房间信息
-        DiagramRoom room = diagramRoomMapper.selectById(roomId);
-        if (room == null) {
-            session.close(CloseStatus.NOT_ACCEPTABLE.withReason("房间不存在"));
-            log.warn("❌ 房间不存在: {}", roomId);
-            return;
-        }
-
-        // 校验房间权限
+        // 校验用户是否登录
         Principal principal = session.getPrincipal();
         if (principal == null || !(principal instanceof Authentication)) {
             session.close(CloseStatus.POLICY_VIOLATION);
             log.warn("❌ 未登录用户尝试连接协作房间");
             return;
         }
-
         Authentication auth = (Authentication) principal;
         Object principalObj = auth.getPrincipal();
-        if (!(principalObj instanceof com.wfh.drawio.model.entity.User)) {
+        if (!(principalObj instanceof User)) {
             session.close(CloseStatus.POLICY_VIOLATION);
             log.warn("❌ 无法获取用户信息");
             return;
         }
 
-        com.wfh.drawio.model.entity.User loginUser = (com.wfh.drawio.model.entity.User) principalObj;
+        User loginUser = (User) principalObj;
 
-        // 校验空间权限
-        Long spaceId = room.getSpaceId();
-        if (spaceId == null) {
-            // 公共房间：仅房主或管理员可访问
-            if (!room.getOwnerId().equals(loginUser.getId()) && !isAdmin(auth)) {
-                session.close(CloseStatus.POLICY_VIOLATION.withReason("无权限访问此公共房间"));
-                log.warn("❌ 用户 {} 无权限访问公共房间 {}", loginUser.getId(), roomId);
-                return;
-            }
-        } else {
-            // 查询空间信息
-            Space space = spaceService.getById(spaceId);
-            if (space == null) {
-                session.close(CloseStatus.NOT_ACCEPTABLE.withReason("空间不存在"));
-                log.warn("❌ 空间不存在: {}", spaceId);
-                return;
-            }
-
-            if (SpaceTypeEnum.PRIVATE.getValue() == space.getSpaceType()) {
-                // 私有空间：仅空间创建人
-                if (!space.getUserId().equals(loginUser.getId()) && !isAdmin(auth)) {
-                    session.close(CloseStatus.POLICY_VIOLATION.withReason("无权限访问私有空间"));
-                    log.warn("❌ 用户 {} 无权限访问私有空间 {}", loginUser.getId(), spaceId);
-                    return;
-                }
-            } else if (SpaceTypeEnum.TEAM.getValue() == space.getSpaceType()) {
-                // 团队空间：查询 SpaceUser 表校验角色
-                SpaceUser spaceUser = spaceUserMapper.selectOne(
-                    new LambdaQueryWrapper<SpaceUser>()
-                        .eq(SpaceUser::getSpaceId, spaceId)
-                        .eq(SpaceUser::getUserId, loginUser.getId())
-                );
-                if (spaceUser == null && !isAdmin(auth)) {
-                    session.close(CloseStatus.POLICY_VIOLATION.withReason("不是团队空间成员"));
-                    log.warn("❌ 用户 {} 不是团队空间 {} 的成员", loginUser.getId(), spaceId);
-                    return;
-                }
-            }
+        // 检查房间查看权限（基于协作房间角色）
+        if (!roomSecurityService.checkRoomPermission(loginUser.getId(), roomName, false)) {
+            session.close(CloseStatus.POLICY_VIOLATION.withReason("无查看权限"));
+            log.warn("❌ 用户 {} 无查看房间 {} 权限", loginUser.getId(), roomName);
+            return;
         }
 
         // 权限校验通过，加入房间管理
         roomSession.computeIfAbsent(roomName, k -> new CopyOnWriteArraySet<>()).add(session);
 
-        log.info("✅ 用户加入协作房间: {}, 当前房间人数: {}", roomName, roomSession.get(roomName).size());
+        log.info("✅ 用户 {} 加入协作房间: {}, 当前房间人数: {}", loginUser.getId(), roomName, roomSession.get(roomName).size());
 
         // 从数据库重建历史
         RoomSnapshots roomSnapshots = roomSnapshotsMapper.selectLatestByRoom(roomName);
@@ -228,19 +156,35 @@ public class YjsHandler extends BinaryWebSocketHandler {
         byte opCode = payload[0];
         String roomName = getRoomName(session);
 
-        // 获取用户权限
+        // 获取用户信息
         Principal principal = session.getPrincipal();
-        boolean canView = hasPermission(principal, AuthorityEnums.ROOM_DIAGRAM_VIEW.getValue());
-        boolean canEdit = hasPermission(principal, AuthorityEnums.ROOM_DIAGRAM_EDIT.getValue());
-
-        // 无查看权限直接断开
-        if (!canView) {
-            session.close();
+        if (principal == null || !(principal instanceof Authentication)) {
+            session.close(CloseStatus.POLICY_VIOLATION);
             return;
         }
 
-        log.info("收到消息，房间: {}, OpCode: 0x{}, 长度: {}, 来自: {}",
-                roomName, String.format("%02X", opCode), payload.length, session.getId());
+        Authentication auth = (Authentication) principal;
+        Object principalObj = auth.getPrincipal();
+        if (!(principalObj instanceof com.wfh.drawio.model.entity.User)) {
+            session.close(CloseStatus.POLICY_VIOLATION);
+            return;
+        }
+
+        com.wfh.drawio.model.entity.User loginUser = (com.wfh.drawio.model.entity.User) principalObj;
+
+        // 检查房间权限（基于协作房间角色）
+        boolean canView = roomSecurityService.checkRoomPermission(loginUser.getId(), roomName, false);
+        boolean canEdit = roomSecurityService.checkRoomPermission(loginUser.getId(), roomName, true);
+
+        // 无查看权限直接断开
+        if (!canView) {
+            log.warn("⛔ 用户 {} 无查看房间 {} 权限", loginUser.getId(), roomName);
+            session.close(CloseStatus.POLICY_VIOLATION.withReason("无查看权限"));
+            return;
+        }
+
+        log.info("收到消息，房间: {}, OpCode: 0x{}, 长度: {}, 来自: {}, 编辑权限: {}",
+                roomName, String.format("%02X", opCode), payload.length, session.getId(), canEdit);
 
         switch (opCode) {
             case OP_POINTER -> {
@@ -269,7 +213,7 @@ public class YjsHandler extends BinaryWebSocketHandler {
                     // 广播给其他用户（带 OpCode）
                     broadcastBinaryToOthers(roomName, payload, session.getId());
                 } else {
-                    log.warn("⛔ 拦截无权编辑操作: user={}", principal != null ? principal.getName() : "anonymous");
+                    log.warn("⛔ 用户 {} 无编辑权限，拦截编辑操作", loginUser.getId());
                 }
             }
             default -> {
@@ -398,59 +342,5 @@ public class YjsHandler extends BinaryWebSocketHandler {
         }
         String path = uri.getPath();
         return path.substring(path.lastIndexOf('/') + 1);
-    }
-
-    /**
-     * 校验权限
-     * @param principal
-     * @param targetPerm
-     * @return
-     */
-    private boolean hasPermission(Principal principal, String targetPerm) {
-        // 未登录直接拒绝
-        if (principal == null) {
-            return false;
-        }
-        if (principal instanceof Authentication) {
-            Authentication auth = (Authentication) principal;
-            // 获取所有权限
-            Collection<? extends GrantedAuthority> authorities = auth.getAuthorities();
-            if (authorities == null || authorities.isEmpty()) {
-                return false;
-            }
-            // 遍历权限
-            for (GrantedAuthority authority : authorities) {
-                String myPerm = authority.getAuthority();
-                if (AuthorityEnums.ADMIN.getValue().equals(myPerm)) {
-                    // 超级管理员直接放行
-                    return true;
-                }
-                if (myPerm.equals(targetPerm)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
-     * 判断是否为管理员
-     * @param auth
-     * @return
-     */
-    private boolean isAdmin(Authentication auth) {
-        if (auth == null) {
-            return false;
-        }
-        Collection<? extends GrantedAuthority> authorities = auth.getAuthorities();
-        if (authorities == null || authorities.isEmpty()) {
-            return false;
-        }
-        for (GrantedAuthority authority : authorities) {
-            if (AuthorityEnums.ADMIN.getValue().equals(authority.getAuthority())) {
-                return true;
-            }
-        }
-        return false;
     }
 }

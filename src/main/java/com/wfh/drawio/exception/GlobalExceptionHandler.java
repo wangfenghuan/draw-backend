@@ -33,6 +33,11 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(AuthorizationDeniedException.class)
+    public BaseResponse<?> handleAuthenticationDeniedException(AuthenticationException e) {
+        return ResultUtils.error(ErrorCode.OPERATION_ERROR, "无权限");
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
     public BaseResponse<?> handleAuthenticationException(AuthenticationException e) {
         return ResultUtils.error(ErrorCode.OPERATION_ERROR, "无权限");
     }

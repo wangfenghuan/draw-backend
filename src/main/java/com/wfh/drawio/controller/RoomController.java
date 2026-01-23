@@ -89,7 +89,7 @@ public class RoomController {
      * @return 图表详情（封装类）
      */
     @GetMapping("/getDiagram")
-    @PreAuthorize("@roomSecurityService.hasRoomAuthority(#roomId, 'room:diagram:view') or hasAuthority('admin')")
+    @PreAuthorize("@roomSecurityService.hasAnyRoomAuthority(#roomId, {'room:diagram:view', 'room:diagram:edit'}) or hasAuthority('admin')")
     @Operation(summary = "获取房间内的图表详情",
             description = """
                     根据ID获取图表的详细信息。
@@ -319,6 +319,7 @@ public class RoomController {
      */
     @PostMapping("/edit")
     @Operation(summary = "编辑房间（给用户使用）")
+    @PreAuthorize("@roomSecurityService.hasAnyRoomAuthority(#roomEditRequest.id, {'room:diagram:view', 'room:diagram:edit'}) or hasAuthority('admin')")
     public BaseResponse<Boolean> editDiagramRoom(@RequestBody RoomEditRequest roomEditRequest, HttpServletRequest request) {
         if (roomEditRequest == null || roomEditRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -332,10 +333,6 @@ public class RoomController {
         long id = roomEditRequest.getId();
         DiagramRoom oldDiagramRoom = roomService.getById(id);
         ThrowUtils.throwIf(oldDiagramRoom == null, ErrorCode.NOT_FOUND_ERROR);
-        // 仅本人或管理员可编辑
-        if (!oldDiagramRoom.getOwnerId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
-        }
         // 空间权限校验
         spaceService.checkRoomAuth(loginUser, oldDiagramRoom);
         // 操作数据库
