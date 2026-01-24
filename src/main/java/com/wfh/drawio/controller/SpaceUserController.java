@@ -105,24 +105,22 @@ public class SpaceUserController {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         Long userId = deleteRequest.getUserId();
-        // 判断是否存在(根据空间用户id查询)
+        Long spaceId = deleteRequest.getSpaceId();
+
+        // 判断是否存在(根据空间ID和用户ID查询)
         LambdaQueryWrapper<SpaceUser> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SpaceUser::getSpaceId, spaceId);
         wrapper.eq(SpaceUser::getUserId, userId);
         SpaceUser oldSpaceUser = spaceUserService.getOne(wrapper);
-        ThrowUtils.throwIf(oldSpaceUser == null, ErrorCode.NOT_FOUND_ERROR);
-
-        // 手动校验空间权限（因为需要先查询 oldSpaceUser 才能知道 spaceId）
-        User loginUser = userService.getLoginUser(request);
-        if (!spaceRoleService.hasAuthority(loginUser.getId(), oldSpaceUser.getSpaceId(), "space:user:manage")
-                && !userService.isAdmin(loginUser)) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无空间用户管理权限");
-        }
+        ThrowUtils.throwIf(oldSpaceUser == null, ErrorCode.NOT_FOUND_ERROR, "该用户不在该空间中");
 
         // 不能删除自己
+        User loginUser = userService.getLoginUser(request);
         if (Objects.equals(userId, loginUser.getId())){
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "不能删除自己");
         }
-        // 操作数据库(根据用户空间表中的用户id删除)
+
+        // 操作数据库(根据空间ID和用户ID删除)
         boolean result = spaceUserService.remove(wrapper);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(true);
