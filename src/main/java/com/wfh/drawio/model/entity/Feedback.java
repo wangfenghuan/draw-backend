@@ -51,4 +51,9 @@ public class Feedback {
      */
     @TableLogic
     private Integer isDelete;
+
+    /**
+     * 是否处理
+     */
+    private Integer isHandle;
 }

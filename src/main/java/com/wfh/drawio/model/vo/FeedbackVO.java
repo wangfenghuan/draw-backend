@@ -60,6 +60,12 @@ public class FeedbackVO implements Serializable {
     private Date updateTime;
 
     /**
+     * 是否处理
+     */
+    @Schema(description = "是否处理（0 未处理，1处理）", example = "2024-01-01 10:00:00")
+    private Integer isHandle;
+
+    /**
      * 封装类转对象
      *
      * @param feedbackVO

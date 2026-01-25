@@ -2,6 +2,7 @@ package com.wfh.drawio.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.wfh.drawio.common.BaseResponse;
+import com.wfh.drawio.common.DeleteRequest;
 import com.wfh.drawio.common.ErrorCode;
 import com.wfh.drawio.common.ResultUtils;
 import com.wfh.drawio.exception.BusinessException;
@@ -9,6 +10,7 @@ import com.wfh.drawio.exception.ThrowUtils;
 import com.wfh.drawio.manager.RustFsManager;
 import com.wfh.drawio.model.dto.feedback.FeedbackAddRequest;
 import com.wfh.drawio.model.dto.feedback.FeedbackQueryRequest;
+import com.wfh.drawio.model.dto.feedback.FeedbackUpdateRequest;
 import com.wfh.drawio.model.entity.Feedback;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.vo.FeedbackVO;
@@ -120,6 +122,52 @@ public class FeedBackController {
         boolean result = feedbackService.save(feedback);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(feedback.getId());
+    }
+
+    /**
+     * 管理员编辑反馈
+     *
+     * @param feedbackUpdateRequest
+     * @return
+     */
+    @PreAuthorize("hasAuthority('admin')")
+    @PostMapping("/update")
+    public BaseResponse<Boolean> updateFeedback(@RequestBody FeedbackUpdateRequest feedbackUpdateRequest) {
+        Long id = feedbackUpdateRequest.getId();
+        Integer isHandle = feedbackUpdateRequest.getIsHandle();
+        if (id == null || isHandle == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        Feedback feedback = feedbackService.getById(id);
+        if (feedback == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "反馈不存在");
+        }
+        feedback.setIsHandle(isHandle);
+        // 更新反馈
+        boolean res = feedbackService.updateById(feedback);
+        return ResultUtils.success(res);
+    }
+
+    /**
+     * 管理员删除反馈
+     *
+     * @param deleteRequest
+     * @return
+     */
+    @PreAuthorize("hasAuthority('admin')")
+    @PostMapping("/delete")
+    public BaseResponse<Boolean> deleteFeedback(@RequestBody DeleteRequest deleteRequest) {
+        Long id = deleteRequest.getId();
+        if (id == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        Feedback feedback = feedbackService.getById(id);
+        if (feedback == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "反馈不存在");
+        }
+        // 更新反馈
+        boolean res = feedbackService.removeById(feedback);
+        return ResultUtils.success(res);
     }
 
     /**
