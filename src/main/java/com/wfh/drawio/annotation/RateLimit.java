@@ -1,7 +1,6 @@
 package com.wfh.drawio.annotation;
 
 import com.wfh.drawio.model.enums.RateLimitType;
-import org.redisson.api.RateType;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

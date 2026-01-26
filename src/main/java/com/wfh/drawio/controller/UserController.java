@@ -1,14 +1,21 @@
 package com.wfh.drawio.controller;
 
+import cn.hutool.captcha.CaptchaUtil;
+import cn.hutool.captcha.LineCaptcha;
+import cn.hutool.captcha.ShearCaptcha;
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.lang.Validator;
 import cn.hutool.core.util.RandomUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 
+import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 
+import com.wfh.drawio.annotation.RateLimit;
 import com.wfh.drawio.common.BaseResponse;
 import com.wfh.drawio.common.DeleteRequest;
 import com.wfh.drawio.common.ErrorCode;
@@ -20,6 +27,7 @@ import com.wfh.drawio.mapper.SysRoleMapper;
 import com.wfh.drawio.model.dto.user.*;
 import com.wfh.drawio.model.entity.SysAuthority;
 import com.wfh.drawio.model.entity.User;
+import com.wfh.drawio.model.enums.RateLimitType;
 import com.wfh.drawio.model.vo.LoginUserVO;
 import com.wfh.drawio.model.vo.RoleAuthorityFlatVO;
 import com.wfh.drawio.model.vo.RoleWithAuthoritiesVO;
@@ -35,6 +43,7 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -56,6 +65,9 @@ public class UserController {
     @Resource
     private RustFsManager rustFsManager;
 
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
+
 
     // region 登录相关
 
@@ -67,23 +79,58 @@ public class UserController {
      */
     @PostMapping("/register")
     @Operation(summary = "用户注册")
+    @RateLimit(limitType = RateLimitType.USER, rate = 5, rateInterval = 10)
     public BaseResponse<Long> userRegister(@RequestBody UserRegisterRequest userRegisterRequest) {
         if (userRegisterRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
+        String uuid = userRegisterRequest.getUuid();
+        String key = String.format("captcha:uuid:%s", uuid);
         String userAccount = userRegisterRequest.getUserAccount();
         String userPassword = userRegisterRequest.getUserPassword();
         String checkPassword = userRegisterRequest.getCheckPassword();
         String userName = userRegisterRequest.getUserName();
+        String captchaCode = userRegisterRequest.getCaptchaCode();
+        // 先验证验证码是否正确
+        String s = stringRedisTemplate.opsForValue().get(key);
+        assert s != null;
+        if (!captchaCode.toLowerCase(Locale.ROOT).equals(s.toLowerCase(Locale.ROOT))){
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "验证码错误");
+        }
+        // 验证是否是正确的邮箱
+        boolean email = Validator.isEmail(userAccount);
+        ThrowUtils.throwIf(!email, ErrorCode.PARAMS_ERROR, "邮箱格式不正确");
         if (userName == null){
             userName = "用户" + RandomUtil.randomString(5);
         }
         if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword)) {
-            return null;
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         long result = userService.userRegister(userAccount, userPassword, checkPassword, userName);
         return ResultUtils.success(result);
     }
+
+
+    /**
+     * 生成图片验证码(返回Map<uuid, 生成的base64验证码，后续uuid需要携带到注册接口>)
+     * @param request
+     * @return
+     */
+    @GetMapping("/createCaptcha")
+    @Operation(summary = "生成图片验证码(返回Map<uuid, 生成的base64验证码，后续uuid需要携带到注册接口>)")
+    public BaseResponse<Map<String, String>> createCaptcha(HttpServletRequest request) {
+        ShearCaptcha captcha = CaptchaUtil.createShearCaptcha(200, 100, 4, 2);
+        String imageBase64 = captcha.getImageBase64();
+        String code = captcha.getCode();
+        // 讲解过存储到Redis中，1min有效
+        UUID uuid = UUID.randomUUID();
+        String key = String.format("captcha:uuid:%s", uuid);
+        stringRedisTemplate.opsForValue().set(key, code, 60, TimeUnit.SECONDS);
+        Map<String, String> resMap = new HashMap<>();
+        resMap.put(uuid.toString(), imageBase64);
+        return ResultUtils.success(resMap);
+    }
+
 
     /**
      * 用户登录

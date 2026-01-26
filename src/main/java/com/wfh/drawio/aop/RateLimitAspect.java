@@ -46,12 +46,13 @@ public class RateLimitAspect {
         String key = generateRateLimitKey(point, rateLimit);
         // 使用Redisson的分布式限流器
         RRateLimiter rateLimiter = redissonClient.getRateLimiter(key);
-        // 记录限流器状态
-        log.debug("限流检查 - Key: {}, 可用令牌: {}", key, rateLimiter.availablePermits());
+
         // 1 小时后过期
         rateLimiter.expire(Duration.ofHours(1));
         // 设置限流器参数：每个时间窗口允许的请求数和时间窗口
         rateLimiter.trySetRate(RateType.OVERALL, rateLimit.rate(), rateLimit.rateInterval(), RateIntervalUnit.SECONDS);
+        // 记录限流器状态
+        log.info("限流检查 - Key: {}, 可用令牌: {}", key, rateLimiter.availablePermits());
         // 尝试获取令牌，如果获取失败则限流
         if (!rateLimiter.tryAcquire(1)) {
             log.warn("限流触发 - Key: {}, 限流配置: {}次/{} 秒",

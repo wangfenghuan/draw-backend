@@ -3,6 +3,7 @@ package com.wfh.drawio.model.dto.user;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.io.Serializable;
 import lombok.Data;
+import software.amazon.awssdk.services.s3.endpoints.internal.Value;
 
 /**
  * 用户注册请求体
@@ -27,4 +28,10 @@ public class UserRegisterRequest implements Serializable {
 
     @Schema(description = "用户昵称", example = "张三")
     private String userName;
+
+    @Schema(description = "图形验证码")
+    private String captchaCode;
+
+    @Schema(description = "验证码uuid")
+    private String uuid;
 }

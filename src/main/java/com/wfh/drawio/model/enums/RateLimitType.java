@@ -1,5 +1,9 @@
 package com.wfh.drawio.model.enums;
 
+/**
+ * @author fenghuanwang
+ */
+
 public enum RateLimitType {
     
     /**
