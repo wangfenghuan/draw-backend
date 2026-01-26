@@ -63,6 +63,8 @@ public class SecurityConfig {
                         .requestMatchers("/excalidraw/**", "/static/**", "/public/**", "/yjs/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/user/createCaptcha").permitAll()
+                        .requestMatchers("/diagram/getDiagrams").permitAll()
+                        .requestMatchers("/material/list/page/vo").permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exceptions -> exceptions

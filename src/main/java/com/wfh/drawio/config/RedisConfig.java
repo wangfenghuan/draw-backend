@@ -1,6 +1,6 @@
 package com.wfh.drawio.config;
 
-import com.wfh.drawio.ws.listener.RedisBinaryListener;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -33,20 +33,5 @@ public class RedisConfig {
         template.setValueSerializer(RedisSerializer.byteArray());
         template.setHashValueSerializer(RedisSerializer.byteArray());
         return template;
-    }
-
-    /**
-     * 监听容器
-     * @param connectionFactory
-     * @param listener
-     * @return
-     */
-    @Bean
-    RedisMessageListenerContainer container(RedisConnectionFactory connectionFactory,
-                                            RedisBinaryListener listener){
-        RedisMessageListenerContainer container = new RedisMessageListenerContainer();
-        container.setConnectionFactory(connectionFactory);
-        container.addMessageListener(listener, new PatternTopic("drawio:room:*"));
-        return container;
     }
 }
