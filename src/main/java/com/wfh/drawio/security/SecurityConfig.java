@@ -2,6 +2,8 @@ package com.wfh.drawio.security;
 
 import com.wfh.drawio.common.ErrorCode;
 import com.wfh.drawio.exception.BusinessException;
+import com.wfh.drawio.security.handler.LoginFailureHandler;
+import com.wfh.drawio.security.handler.LoginSuccessHandler;
 import jakarta.annotation.Resource;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationContext;
@@ -41,6 +43,12 @@ public class SecurityConfig {
     private UserDetailsServiceImpl userDetailsService;
 
     @Resource
+    private LoginSuccessHandler loginSuccessHandler;
+
+    @Resource
+    private LoginFailureHandler loginFailureHandler;
+
+    @Resource
     @Qualifier("handlerExceptionResolver")
     private HandlerExceptionResolver resolver;
 
@@ -58,7 +66,8 @@ public class SecurityConfig {
                         .requireExplicitSave(true)
                 )
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/user/register", "/user/login", "/user/logout").permitAll()
+                        .requestMatchers("/user/register", "/user/login", "/user/logout", "/login",
+                                "/login/oauth2/code/github").permitAll()
                         .requestMatchers("/doc.html", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/webjars/**").permitAll()
                         .requestMatchers("/excalidraw/**", "/static/**", "/public/**", "/yjs/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
@@ -80,6 +89,11 @@ public class SecurityConfig {
                 .rememberMe(remember -> remember
                         .userDetailsService(userDetailsService)
                         .tokenValiditySeconds(60 * 60 * 24 * 7)
+                )
+                // OAuth2登录配置
+                .oauth2Login(oauth2 -> oauth2
+                        .successHandler(loginSuccessHandler)
+                        .failureHandler(loginFailureHandler)
                 )
                 .userDetailsService(userDetailsService);
         return httpSecurity.build();
@@ -107,4 +121,5 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
+
 }

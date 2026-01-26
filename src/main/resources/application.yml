@@ -18,6 +18,8 @@ spring:
       database: 4
       # 连接池配置
       lettuce:
+        observation:
+          enabled: false # 🛑 彻底关闭 Lettuce 的观测性
         pool:
           max-active: 8
           max-idle: 8

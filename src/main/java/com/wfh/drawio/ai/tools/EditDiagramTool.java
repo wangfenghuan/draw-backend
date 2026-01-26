@@ -1,14 +1,13 @@
 package com.wfh.drawio.ai.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wfh.drawio.ai.utils.DiagramContextUtil;
+import com.wfh.drawio.ai.model.StreamEvent;
 import com.wfh.drawio.model.entity.Diagram;
 import com.wfh.drawio.service.DiagramService;
-import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.stereotype.Component;
+import reactor.core.publisher.Sinks;
 
 import java.util.List;
 
@@ -19,14 +18,18 @@ import java.util.List;
  * @Date 2025/12/20 20:44
  * @description: 编辑图表工具
  */
-@Component
 @Slf4j
 public class EditDiagramTool {
 
-    public EditDiagramTool() {}
+    private final DiagramService diagramService;
+    private final String diagramId;
+    private final Sinks.Many<StreamEvent> sink;
 
-    @Resource
-    private DiagramService diagramService;
+    public EditDiagramTool(DiagramService diagramService, String diagramId, Sinks.Many<StreamEvent> sink) {
+        this.diagramService = diagramService;
+        this.diagramId = diagramId;
+        this.sink = sink;
+    }
 
     // Jackson ObjectMapper 实例
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -88,10 +91,9 @@ public class EditDiagramTool {
             log.debug("编辑指令内容: {}", requestJson);
 
             // 2. 作用域检查
-            String diagramId = DiagramContextUtil.getConversationId();
             if (diagramId == null){
-                log.error("错误: ThreadLocal CONVERSATION_ID 未绑定");
-                return ToolResult.error("System Error: ThreadLocal not bound");
+                log.error("错误: diagramId 未绑定");
+                return ToolResult.error("System Error: diagramId not bound");
             }
 
             // 3. 获取并准备数据
@@ -149,7 +151,7 @@ public class EditDiagramTool {
 
             // 推送给前端
             log.info("推送更新后的图表...");
-            DiagramContextUtil.result(savedXml);
+            emitResult(savedXml);
 
             log.info("=== EditDiagramTool.execute() 执行完成 ===");
             return ToolResult.success(
@@ -162,6 +164,15 @@ public class EditDiagramTool {
         } catch (Exception e) {
             log.error("编辑图表系统异常: ", e);
             return ToolResult.error("Failed to edit diagram: " + e.getMessage());
+        }
+    }
+
+    private void emitResult(Object data) {
+         if (sink != null) {
+            sink.tryEmitNext(StreamEvent.builder()
+                    .type("tool_call_result")
+                    .content(data)
+                    .build());
         }
     }
 }

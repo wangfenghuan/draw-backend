@@ -43,6 +43,7 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -67,6 +68,18 @@ public class UserController {
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+
+    @Value("${spring.security.oauth2.client.provider.github.authorization-uri}")
+    private String baseUrl;
+
+    @Value("${spring.security.oauth2.client.registration.github.client-id}")
+    private String clientId;
+
+    @Value("${spring.security.oauth2.client.registration.github.scope}")
+    private String scope;
+
+    @Value("${spring.security.oauth2.client.registration.github.redirect-uri}")
+    private String redirctUrl;
 
 
     // region 登录相关
@@ -97,14 +110,21 @@ public class UserController {
         if (!captchaCode.toLowerCase(Locale.ROOT).equals(s.toLowerCase(Locale.ROOT))){
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "验证码错误");
         }
-        // 验证是否是正确的邮箱
-        boolean email = Validator.isEmail(userAccount);
-        ThrowUtils.throwIf(!email, ErrorCode.PARAMS_ERROR, "邮箱格式不正确");
         if (userName == null){
             userName = "用户" + RandomUtil.randomString(5);
         }
         if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        if (userAccount.length() < 4) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户账号过短");
+        }
+        if (userPassword.length() < 8 || checkPassword.length() < 8) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户密码过短");
+        }
+        // 密码和校验密码相同
+        if (!userPassword.equals(checkPassword)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "两次输入的密码不一致");
         }
         long result = userService.userRegister(userAccount, userPassword, checkPassword, userName);
         return ResultUtils.success(result);
@@ -169,6 +189,7 @@ public class UserController {
         boolean result = userService.userLogout(request);
         return ResultUtils.success(result);
     }
+
 
     /**
      * 获取当前登录用户

@@ -1,13 +1,12 @@
 package com.wfh.drawio.ai.tools;
 
-import com.wfh.drawio.ai.utils.DiagramContextUtil;
+import com.wfh.drawio.ai.model.StreamEvent;
 import com.wfh.drawio.model.entity.Diagram;
 import com.wfh.drawio.service.DiagramService;
-import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.stereotype.Component;
+import reactor.core.publisher.Sinks;
 
 /**
  * @Title: CreateDiagramTool
@@ -16,14 +15,18 @@ import org.springframework.stereotype.Component;
  * @Date 2025/12/20 20:44
  * @description: 创建图表工具
  */
-@Component
 @Slf4j
 public class CreateDiagramTool {
 
-    public CreateDiagramTool() {}
+    private final DiagramService diagramService;
+    private final String diagramId;
+    private final Sinks.Many<StreamEvent> sink;
 
-    @Resource
-    private DiagramService diagramService;
+    public CreateDiagramTool(DiagramService diagramService, String diagramId, Sinks.Many<StreamEvent> sink) {
+        this.diagramService = diagramService;
+        this.diagramId = diagramId;
+        this.sink = sink;
+    }
 
     @Tool(name = "display_diagram", description = """
         Create a new diagram on draw.io. Pass ONLY the mxCell elements - wrapper tags and root cells are added automatically.
@@ -56,7 +59,7 @@ public class CreateDiagramTool {
         log.info("=== CreateDiagramTool.execute() 开始执行 ===");
         try {
             // 旁路日志
-            DiagramContextUtil.log("[display_diagram]创建图表:");
+            logInternal("[display_diagram]创建图表:");
             log.info("[display_diagram]创建图表开始");
 
             if (xml == null) {
@@ -64,12 +67,6 @@ public class CreateDiagramTool {
                 return ToolResult.error("Parameter 'xml' is null.");
             }
 
-            // 判断是否绑定了作用域
-            String diagramId = DiagramContextUtil.getConversationId();
-            if (diagramId == null){
-                log.error("错误: ThreadLocal CONVERSATION_ID 未绑定");
-                return ToolResult.error("System Error: ThreadLocal not bound");
-            }
             // 当前的图表ID
             log.info("获取到 diagramId: {}", diagramId);
 
@@ -136,8 +133,8 @@ public class CreateDiagramTool {
 
             // 直接把结果推给前端渲染
             log.info("推送结果到前端...");
-            DiagramContextUtil.result(fullXml);
-            DiagramContextUtil.log("diagram generated");
+            emitResult(fullXml);
+            logInternal("diagram generated");
 
             log.info("=== CreateDiagramTool.execute() 执行完成 ===");
             return ToolResult.success(xml,
@@ -147,6 +144,24 @@ public class CreateDiagramTool {
             log.error("执行异常: ", e);
             log.error("异常详情: {}", e.getMessage());
             return ToolResult.error("Failed to create diagram: " + e.getMessage());
+        }
+    }
+
+    private void logInternal(String message) {
+        if (sink != null) {
+            sink.tryEmitNext(StreamEvent.builder()
+                    .type("too_call")
+                    .content(message)
+                    .build());
+        }
+    }
+
+    private void emitResult(Object data) {
+         if (sink != null) {
+            sink.tryEmitNext(StreamEvent.builder()
+                    .type("tool_call_result")
+                    .content(data)
+                    .build());
         }
     }
 

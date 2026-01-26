@@ -1,13 +1,12 @@
 package com.wfh.drawio.ai.tools;
 
-import com.wfh.drawio.ai.utils.DiagramContextUtil;
+import com.wfh.drawio.ai.model.StreamEvent;
 import com.wfh.drawio.model.entity.Diagram;
 import com.wfh.drawio.service.DiagramService;
-import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.stereotype.Component;
+import reactor.core.publisher.Sinks;
 
 /**
  * @Title: AppendDiagramTool
@@ -16,14 +15,18 @@ import org.springframework.stereotype.Component;
  * @Date 2025/12/20 20:45
  * @description: 追加图表工具
  */
-@Component
 @Slf4j
 public class AppendDiagramTool {
 
-    @Resource
-    private DiagramService diagramService;
+    private final DiagramService diagramService;
+    private final String diagramId;
+    private final Sinks.Many<StreamEvent> sink;
 
-    public AppendDiagramTool() {}
+    public AppendDiagramTool(DiagramService diagramService, String diagramId, Sinks.Many<StreamEvent> sink) {
+        this.diagramService = diagramService;
+        this.diagramId = diagramId;
+        this.sink = sink;
+    }
 
     @Tool(name = "append_diagram", description = """
         Continue generating diagram XML when previous create_diagram output was truncated due to length limits.
@@ -63,10 +66,9 @@ public class AppendDiagramTool {
             }
 
             // 2. 判断是否绑定了作用域
-            String diagramId = DiagramContextUtil.getConversationId();
             if (diagramId == null){
-                log.error("错误: ThreadLocal CONVERSATION_ID 未绑定");
-                return ToolResult.error("System Error: ThreadLocal not bound");
+                log.error("错误: diagramId 未绑定");
+                return ToolResult.error("System Error: diagramId not bound");
             }
 
             // 3. 在后端内部获取 currentXml
@@ -120,7 +122,7 @@ public class AppendDiagramTool {
             diagramService.updateById(diagram);
 
             // 推送给前端渲染
-            DiagramContextUtil.result(finalXml);
+            emitResult(finalXml);
 
             log.info("=== AppendDiagramTool.execute() 执行完成 ===");
             return ToolResult.success(
@@ -131,6 +133,15 @@ public class AppendDiagramTool {
         } catch (Exception e) {
             log.error("追加图表异常: ", e);
             return ToolResult.error("Failed to append diagram: " + e.getMessage());
+        }
+    }
+
+    private void emitResult(Object data) {
+         if (sink != null) {
+            sink.tryEmitNext(StreamEvent.builder()
+                    .type("tool_call_result")
+                    .content(data)
+                    .build());
         }
     }
 }

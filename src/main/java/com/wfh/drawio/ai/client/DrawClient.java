@@ -8,9 +8,9 @@ import com.wfh.drawio.ai.model.StreamEvent;
 import com.wfh.drawio.ai.tools.AppendDiagramTool;
 import com.wfh.drawio.ai.tools.CreateDiagramTool;
 import com.wfh.drawio.ai.tools.EditDiagramTool;
-import com.wfh.drawio.ai.utils.DiagramContextUtil;
 import com.wfh.drawio.ai.utils.PromptUtil;
 import com.wfh.drawio.model.dto.diagram.CustomChatRequest;
+import com.wfh.drawio.service.DiagramService;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
@@ -40,22 +40,15 @@ public class DrawClient {
 
     private final DbBaseChatMemory dbBaseChatMemory;
 
-    private final CreateDiagramTool createDiagramTool;
-    private final EditDiagramTool editDiagramTool;
-    private final AppendDiagramTool appendDiagramTool;
+    private final DiagramService diagramService;
 
     @Value("${spring.ai.openai.chat.options.model}")
     private String defaultModelId;
 
-    public DrawClient(MultiModelFactory multiModelFactory, DbBaseChatMemory dbBaseChatMemory,
-                      CreateDiagramTool createDiagramTool,
-                      EditDiagramTool editDiagramTool,
-                      AppendDiagramTool appendDiagramTool) {
+    public DrawClient(MultiModelFactory multiModelFactory, DbBaseChatMemory dbBaseChatMemory, DiagramService diagramService) {
         this.multiModelFactory = multiModelFactory;
         this.dbBaseChatMemory = dbBaseChatMemory;
-        this.createDiagramTool = createDiagramTool;
-        this.editDiagramTool = editDiagramTool;
-        this.appendDiagramTool = appendDiagramTool;
+        this.diagramService = diagramService;
     }
 
     /**
@@ -63,14 +56,20 @@ public class DrawClient {
      * @param modelId
      * @return
      */
-    private ChatClient createChatClient(String modelId){
+    private ChatClient createChatClient(String modelId, String diagramId, Sinks.Many<StreamEvent> sink){
         Resource cpRes = new ClassPathResource("/doc/xml_guide.md");
         String targetModelId = (modelId == null || modelId.isEmpty()) ? defaultModelId : modelId;
         ChatModel chatModel = multiModelFactory.getChatModel(targetModelId);
+        
+        // 实例化带有上下文的工具
+        CreateDiagramTool createTool = new CreateDiagramTool(diagramService, diagramId, sink);
+        EditDiagramTool editTool = new EditDiagramTool(diagramService, diagramId, sink);
+        AppendDiagramTool appendTool = new AppendDiagramTool(diagramService, diagramId, sink);
+
         return ChatClient.builder(chatModel)
-                .defaultTools(createDiagramTool)
-                .defaultTools(editDiagramTool)
-                .defaultTools(appendDiagramTool)
+                .defaultTools(createTool)
+                .defaultTools(editTool)
+                .defaultTools(appendTool)
                 .defaultSystem(cpRes)
                 .defaultSystem(PromptUtil.getSystemPrompt(targetModelId, true))
                 .defaultAdvisors(new MyLoggerAdvisor())
@@ -86,12 +85,18 @@ public class DrawClient {
      * @param baseUrl
      * @return
      */
-    private ChatClient createCustomChatClient(String modelId, String apiKey, String baseUrl) {
+    private ChatClient createCustomChatClient(String modelId, String apiKey, String baseUrl, String diagramId, Sinks.Many<StreamEvent> sink) {
         ChatModel customModel = multiModelFactory.getCustomModel(modelId, apiKey, baseUrl);
+        
+        // 实例化带有上下文的工具
+        CreateDiagramTool createTool = new CreateDiagramTool(diagramService, diagramId, sink);
+        EditDiagramTool editTool = new EditDiagramTool(diagramService, diagramId, sink);
+        AppendDiagramTool appendTool = new AppendDiagramTool(diagramService, diagramId, sink);
+
         return ChatClient.builder(customModel)
-                .defaultTools(createDiagramTool)
-                .defaultTools(editDiagramTool)
-                .defaultTools(appendDiagramTool)
+                .defaultTools(createTool)
+                .defaultTools(editTool)
+                .defaultTools(appendTool)
                 .defaultSystem(PromptUtil.getSystemPrompt(modelId, true))
                 .defaultAdvisors(new MyLoggerAdvisor())
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(dbBaseChatMemory).build())
@@ -104,7 +109,8 @@ public class DrawClient {
      * @return
      */
     public String doChat(String message, String diagramId, String modelId){
-        ChatClient chatClient = createChatClient(modelId);
+        // 同步调用不需要 Sink，或者传入 null
+        ChatClient chatClient = createChatClient(modelId, diagramId, null);
         ChatResponse chatResponse = chatClient
                 .prompt()
                 .user(message)
@@ -124,8 +130,10 @@ public class DrawClient {
      * @return
      */
     public Flux<String> doChatStream(String message, String diagramId, String modelId) {
-        ChatClient chatClient = createChatClient(modelId);
-        return getStringFlux(message, diagramId, chatClient);
+        // 1. 创建旁路管道
+        Sinks.Many<StreamEvent> sideChannelSink = Sinks.many().unicast().onBackpressureBuffer();
+        ChatClient chatClient = createChatClient(modelId, diagramId, sideChannelSink);
+        return getStringFlux(message, diagramId, chatClient, sideChannelSink);
     }
 
     /**
@@ -140,9 +148,11 @@ public class DrawClient {
         String modelId = request.getModelId();
         String baseUrl = request.getBaseUrl();
         String apiKey = request.getApiKey();
-        ChatClient customChatClient = createCustomChatClient(modelId, apiKey, baseUrl);
+        
         // 1. 创建旁路管道
-        return getStringFlux(message, diagramId, customChatClient);
+        Sinks.Many<StreamEvent> sideChannelSink = Sinks.many().unicast().onBackpressureBuffer();
+        ChatClient customChatClient = createCustomChatClient(modelId, apiKey, baseUrl, diagramId, sideChannelSink);
+        return getStringFlux(message, diagramId, customChatClient, sideChannelSink);
     }
 
     /**
@@ -154,9 +164,7 @@ public class DrawClient {
      * @return
      */
     @NotNull
-    private Flux<String> getStringFlux(String message, String diagramId, ChatClient chatClient) {
-        // 1. 创建旁路管道
-        Sinks.Many<StreamEvent> sideChannelSink = Sinks.many().unicast().onBackpressureBuffer();
+    private Flux<String> getStringFlux(String message, String diagramId, ChatClient chatClient, Sinks.Many<StreamEvent> sideChannelSink) {
         // 2. 将管道转换为流，并处理 JSON 序列化
         Flux<String> toolLogFlux = sideChannelSink.asFlux()
                 .map(JSONUtil::toJsonStr);
@@ -173,14 +181,7 @@ public class DrawClient {
                         .build()))
                 // 当 AI 流结束时，关闭旁路管道。这是 Flux.merge 能结束的关键。
                 .doOnTerminate(sideChannelSink::tryEmitComplete);
-        // 4. 合并流 + 注入上下文
-        return Flux.merge(toolLogFlux, aiResFlux)
-                // 使用 contextWrite 显式注入 Sink，确保它存在于 Reactor Context 中
-                .contextWrite(ctx -> ctx
-                        .put(DiagramContextUtil.KEY_SINK, sideChannelSink)
-                        .put(DiagramContextUtil.KEY_CONVERSATION_ID, diagramId)
-                )
-                // 这里的 doFinally 只负责清理 ThreadLocal 防止污染，不负责传递
-                .doFinally(signalType -> DiagramContextUtil.clear());
+        // 4. 合并流 (不再需要注入上下文)
+        return Flux.merge(toolLogFlux, aiResFlux);
     }
 }
