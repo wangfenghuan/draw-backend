@@ -152,11 +152,11 @@ public class InternalApiController {
 
         boolean b = snapshotsService.saveOrUpdate(roomSnapshots);
         
-        // 3. 异步清理
+        // 3. 异步清理：只保留最近的 20 个快照
         try {
-            updatesService.cleanOldUpdates(roomId);
+             snapshotsService.cleanOldSnapshots(roomId);
         } catch (Exception e) {
-            log.error("Clean updates failed", e);
+            log.error("Clean snapshots failed", e);
         }
 
         return ResultUtils.success(b);

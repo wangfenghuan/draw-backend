@@ -10,4 +10,9 @@ import com.baomidou.mybatisplus.extension.service.IService;
 */
 public interface RoomSnapshotsService extends IService<RoomSnapshots> {
 
+    /**
+     * 保留最新的 20 个快照，删除其余的
+     * @param roomId
+     */
+    void cleanOldSnapshots(Long roomId);
 }

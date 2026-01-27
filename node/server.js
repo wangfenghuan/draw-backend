@@ -11,6 +11,8 @@ dotenv.config();
 
 const server = new Server({
     port: process.env.PORT ? parseInt(process.env.PORT) : 1234,
+    // 设置去抖动时间，避免频繁保存 (例如: 5秒内无变化才保存)
+    debounce: 5000,
     // timeout: 30000, 
 
     extensions: [
