@@ -17,7 +17,7 @@ public class UserRegisterRequest implements Serializable {
 
     private static final long serialVersionUID = 3191241716373120793L;
 
-    @Schema(description = "用户账号 (邮箱)", required = true)
+    @Schema(description = "用户账号", example = "admin")
     private String userAccount;
 
     @Schema(description = "用户密码", example = "********")
@@ -29,6 +29,9 @@ public class UserRegisterRequest implements Serializable {
     @Schema(description = "用户昵称", example = "张三")
     private String userName;
 
-    @Schema(description = "邮箱验证码", required = true)
-    private String emailCode;
+    @Schema(description = "图形验证码")
+    private String captchaCode;
+
+    @Schema(description = "验证码uuid")
+    private String uuid;
 }

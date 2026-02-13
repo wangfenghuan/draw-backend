@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.wfh.drawio.model.dto.user.UserAddRequest;
 import com.wfh.drawio.model.dto.user.UserQueryRequest;
-import com.wfh.drawio.model.dto.user.UserUpdateAccountRequest;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.vo.LoginUserVO;
 import com.wfh.drawio.model.vo.RoleWithAuthoritiesVO;
@@ -30,7 +29,6 @@ public interface UserService extends IService<User> {
      * @param userAccount   用户账户
      * @param userPassword  用户密码
      * @param checkPassword 校验密码
-     * @param userName      用户昵称
      * @return 新用户 id
      */
     long userRegister(String userAccount, String userPassword, String checkPassword, String userName);
@@ -144,13 +142,4 @@ public interface UserService extends IService<User> {
      * @return 是否成功
      */
     boolean updateRoleAuthorities(Long roleId, List<Long> authorityIds);
-
-    /**
-     * 更新用户账户信息（账号、密码）
-     *
-     * @param updateAccountRequest 包含新账号和/或新密码的请求
-     * @param request              http请求
-     * @return 是否成功
-     */
-    boolean updateUserAccount(UserUpdateAccountRequest updateAccountRequest, HttpServletRequest request);
 }

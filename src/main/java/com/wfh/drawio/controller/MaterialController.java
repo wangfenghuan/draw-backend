@@ -119,6 +119,7 @@ public class MaterialController {
      */
     @GetMapping("/get")
     @Operation(summary = "根据 id 获取素材")
+    @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Material> getMaterialById(long id, HttpServletRequest request) {
         if (id <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -137,6 +138,7 @@ public class MaterialController {
      */
     @GetMapping("/get/vo")
     @Operation(summary = "根据 id 获取素材封装类")
+    @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<MaterialVO> getMaterialVOById(long id, HttpServletRequest request) {
         if (id <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);

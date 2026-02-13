@@ -21,4 +21,12 @@ public interface OAuth2UserSyncService {
      * @return 本地用户实体
      */
     User syncOrCreateUser(OAuth2User oAuth2User, String provider);
+
+    /**
+     * 根据GitHub用户名查找用户
+     *
+     * @param githubLogin GitHub用户名
+     * @return 用户实体，如果不存在返回null
+     */
+    User findByGithubLogin(String githubLogin);
 }

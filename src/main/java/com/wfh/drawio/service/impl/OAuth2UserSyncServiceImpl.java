@@ -38,26 +38,19 @@ public class OAuth2UserSyncServiceImpl implements OAuth2UserSyncService {
         if (oAuth2User == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "OAuth2用户信息不能为空");
         }
-
-        String email = oAuth2User.getAttribute("email");
+        // GitHub使用"login"属性作为用户名
         String githubLogin = oAuth2User.getAttribute("login");
         String name = oAuth2User.getAttribute("name");
+        String email = oAuth2User.getAttribute("email");
         String avatarUrl = oAuth2User.getAttribute("avatar_url");
         String bio = oAuth2User.getAttribute("bio");
-
-        // 优先使用email作为账户标识，如果email为空，则使用GitHub的login name
-        String accountIdentifier = email;
-        if (accountIdentifier == null || accountIdentifier.isBlank()) {
-            accountIdentifier = githubLogin;
+        if (githubLogin == null) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "无法获取GitHub用户名");
         }
-        if (accountIdentifier == null || accountIdentifier.isBlank()) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "无法获取GitHub用户的邮箱或登录名");
-        }
-
-        log.info("开始同步OAuth2用户: accountIdentifier={}, name={}", accountIdentifier, name);
+        log.info("开始同步OAuth2用户: githubLogin={}, name={}, email={}", githubLogin, name, email);
         // 查找是否已存在该用户
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(User::getUserAccount, accountIdentifier);
+        wrapper.eq(User::getUserAccount, githubLogin);
         User existingUser = userService.getOne(wrapper);
 
         if (existingUser != null) {
@@ -83,7 +76,7 @@ public class OAuth2UserSyncServiceImpl implements OAuth2UserSyncService {
         }
         // 创建新用户
         User newUser = new User();
-        newUser.setUserAccount(accountIdentifier);
+        newUser.setUserAccount(githubLogin);
         // 生成随机密码（OAuth2用户不需要密码，但数据库字段非空）
         String randomPassword = RandomUtil.randomString(8);
         newUser.setUserPassword(passwordEncoder.encode(randomPassword));
@@ -106,7 +99,7 @@ public class OAuth2UserSyncServiceImpl implements OAuth2UserSyncService {
         return newUser;
     }
 
-
+    @Override
     public User findByGithubLogin(String githubLogin) {
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getUserAccount, githubLogin);

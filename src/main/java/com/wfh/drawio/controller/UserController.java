@@ -37,13 +37,11 @@ import com.wfh.drawio.model.vo.LoginUserVO;
 import com.wfh.drawio.model.vo.RoleAuthorityFlatVO;
 import com.wfh.drawio.model.vo.RoleWithAuthoritiesVO;
 import com.wfh.drawio.model.vo.UserVO;
-import com.wfh.drawio.service.EmailService;
 import com.wfh.drawio.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 
 import org.apache.commons.lang3.RandomStringUtils;
@@ -76,9 +74,6 @@ public class UserController {
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
-    @Resource
-    private EmailService emailService;
-
     @Value("${spring.security.oauth2.client.provider.github.authorization-uri}")
     private String baseUrl;
 
@@ -107,24 +102,24 @@ public class UserController {
         if (userRegisterRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
+        String uuid = userRegisterRequest.getUuid();
+        String key = String.format("captcha:uuid:%s", uuid);
         String userAccount = userRegisterRequest.getUserAccount();
         String userPassword = userRegisterRequest.getUserPassword();
         String checkPassword = userRegisterRequest.getCheckPassword();
         String userName = userRegisterRequest.getUserName();
-        String emailCode = userRegisterRequest.getEmailCode();
-
-        // 1. 校验邮箱验证码
-        String redisKey = String.format("register:code:%s", userAccount);
-        String storedCode = stringRedisTemplate.opsForValue().get(redisKey);
-        if (StringUtils.isBlank(storedCode) || !storedCode.equals(emailCode)) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "邮箱验证码错误");
+        String captchaCode = userRegisterRequest.getCaptchaCode();
+        // 先验证验证码是否正确
+        String s = stringRedisTemplate.opsForValue().get(key);
+        assert s != null;
+        if (!captchaCode.toLowerCase(Locale.ROOT).equals(s.toLowerCase(Locale.ROOT))){
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "验证码错误");
         }
-
-        if (userName == null) {
+        if (userName == null){
             userName = "用户" + RandomUtil.randomString(5);
         }
         if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数不能为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         if (userAccount.length() < 4) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户账号过短");
@@ -137,35 +132,28 @@ public class UserController {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "两次输入的密码不一致");
         }
         long result = userService.userRegister(userAccount, userPassword, checkPassword, userName);
-
-        // 注册成功后删除验证码
-        stringRedisTemplate.delete(redisKey);
-
         return ResultUtils.success(result);
     }
 
 
     /**
-     * 发送注册邮箱验证码
-     *
-     * @param userAccountRequest
+     * 生成图片验证码(返回Map<uuid, 生成的base64验证码，后续uuid需要携带到注册接口>)
+     * @param request
      * @return
      */
-    @PostMapping("/send-register-code")
-    @Operation(summary = "发送注册邮箱验证码")
-    @RateLimit(rate = 1, rateInterval = 60)
-    public BaseResponse<Boolean> sendRegisterCode(@Valid @RequestBody UserAccountRequest userAccountRequest) {
-        String userAccount = userAccountRequest.getUserAccount();
-        // 1. 生成6位随机验证码
-        String code = RandomUtil.randomNumbers(6);
-        // 2. 存入Redis，5分钟有效
-        String redisKey = String.format("register:code:%s", userAccount);
-        stringRedisTemplate.opsForValue().set(redisKey, code, 5, TimeUnit.MINUTES);
-        // 3. 发送邮件
-        String subject = "【IntelliDraw】注册验证码";
-        String content = "您正在注册 IntelliDraw 账号，验证码为：" + code + "，有效期5分钟，请勿泄露。";
-        emailService.sendSimpleMail(userAccount, subject, content);
-        return ResultUtils.success(true);
+    @GetMapping("/createCaptcha")
+    @Operation(summary = "生成图片验证码(返回Map<uuid, 生成的base64验证码，后续uuid需要携带到注册接口>)")
+    public BaseResponse<Map<String, String>> createCaptcha(HttpServletRequest request) {
+        ShearCaptcha captcha = CaptchaUtil.createShearCaptcha(200, 100, 4, 2);
+        String imageBase64 = captcha.getImageBase64();
+        String code = captcha.getCode();
+        // 讲解过存储到Redis中，1min有效
+        UUID uuid = UUID.randomUUID();
+        String key = String.format("captcha:uuid:%s", uuid);
+        stringRedisTemplate.opsForValue().set(key, code, 60, TimeUnit.SECONDS);
+        Map<String, String> resMap = new HashMap<>();
+        resMap.put(uuid.toString(), imageBase64);
+        return ResultUtils.success(resMap);
     }
 
 
@@ -485,25 +473,6 @@ public class UserController {
         }
         boolean result = userService.updateRoleAuthorities(roleAuthorityUpdateRequest.getRoleId(),
                 roleAuthorityUpdateRequest.getAuthorityIds());
-        return ResultUtils.success(result);
-    }
-
-    /**
-     * 更新用户账户（账号和/或密码）
-     *
-     * @param updateAccountRequest
-     * @param request
-     * @return
-     */
-    @PostMapping("/update/account")
-    @Operation(summary = "更新用户账户（账号和/或密码）")
-    @PreAuthorize("isAuthenticated()")
-    public BaseResponse<Boolean> updateUserAccount(@RequestBody UserUpdateAccountRequest updateAccountRequest,
-                                                     HttpServletRequest request) {
-        if (updateAccountRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        boolean result = userService.updateUserAccount(updateAccountRequest, request);
         return ResultUtils.success(result);
     }
 }

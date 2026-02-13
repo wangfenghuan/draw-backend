@@ -26,12 +26,10 @@ import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import java.util.Arrays;
 import java.util.List;
-
 
 /**
  * @author fenghuanwang
@@ -44,7 +42,6 @@ public class SecurityConfig {
     @Resource
     private UserDetailsServiceImpl userDetailsService;
 
-    @Lazy
     @Resource
     private LoginSuccessHandler loginSuccessHandler;
 
@@ -74,10 +71,10 @@ public class SecurityConfig {
                         .requestMatchers("/doc.html", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/webjars/**").permitAll()
                         .requestMatchers("/excalidraw/**", "/static/**", "/public/**", "/yjs/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/user/send-register-code").permitAll()
+                        .requestMatchers("/user/createCaptcha").permitAll()
                         .requestMatchers("/diagram/getDiagrams").permitAll()
                         .requestMatchers("/material/list/page/vo").permitAll()
-                        .requestMatchers("/internal/save", "/internal/auth", "/material/get/vo").permitAll()
+                        .requestMatchers("/internal/save", "/internal/auth").permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exceptions -> exceptions
