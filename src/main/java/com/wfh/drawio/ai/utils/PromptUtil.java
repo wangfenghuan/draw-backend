@@ -142,7 +142,7 @@ public class PromptUtil {
             
             Add new element: {"operations": [{"type": "add", "cell_id": "new1", "new_xml": "<mxCell id=\\"new1\\" value=\\"New Item\\" style=\\"rounded=1;whiteSpace=wrap;html=1;\\" vertex=\\"1\\" parent=\\"1\\">  <mxGeometry x=\\"300\\" y=\\"200\\" width=\\"120\\" height=\\"60\\" as=\\"geometry\\"/></mxCell>"}]}
             
-            Multi-line text: {"operations": [{"type": "add", "cell_id": "new2", "new_xml": "<mxCell id=\\"new2\\" value=\\"Line 1\\\\nLine 2\\\\nLine 3\\" style=\\"rounded=1;whiteSpace=wrap;html=1;\\" vertex=\\"1\\" parent=\\"1\\">  <mxGeometry x=\\"300\\" y=\\"300\\" width=\\"120\\" height=\\"80\\" as=\\"geometry\\"/></mxCell>"}]}
+            Multi-line text: {"operations": [{"type": "add", "cell_id": "new2", "new_xml": "<mxCell id=\\"new2\\" value=\\"Line 1&lt;br&gt;Line 2&lt;br&gt;Line 3\\" style=\\"rounded=1;whiteSpace=wrap;html=1;\\" vertex=\\"1\\" parent=\\"1\\">  <mxGeometry x=\\"300\\" y=\\"300\\" width=\\"120\\" height=\\"80\\" as=\\"geometry\\"/></mxCell>"}]}
             
             Delete: {"operations": [{"type": "delete", "cell_id": "5"}]}
             
@@ -171,22 +171,23 @@ public class PromptUtil {
             
             **CRITICAL FOR PROPER TEXT DISPLAY:**
             - **ALWAYS** include 'whiteSpace=wrap;html=1;' in style attributes for cells with text
-            - This ensures \\n characters work as line breaks instead of showing as literal "\\n"
+            - **NEVER use \\n for line breaks.** It does not work reliably in HTML mode.
+            - **ALWAYS use &lt;br&gt; for line breaks.** Since the value attribute is XML, you must escape it as &lt;br&gt;.
             
             **Multi-line Text Examples:**
             - Single line: value="Simple text"
-            - Multi-line: value="Line 1\\\\nLine 2\\\\nLine 3"
-            - Lists: value="• Item 1\\\\n• Item 2\\\\n• Item 3"
+            - Multi-line: value="Line 1&lt;br&gt;Line 2&lt;br&gt;Line 3"
+            - Lists: value="• Item 1&lt;br&gt;• Item 2&lt;br&gt;• Item 3"
             
             **Correct Cell with Multi-line Text:**
             ```xml
-            <mxCell id="5" value="Process Steps:\\n1. Initialize\\n2. Process data\\n3. Output result" style="rounded=1;whiteSpace=wrap;html=1;align=left;" vertex="1" parent="1">
+            <mxCell id="5" value="Process Steps:&lt;br&gt;1. Initialize&lt;br&gt;2. Process data&lt;br&gt;3. Output result" style="rounded=1;whiteSpace=wrap;html=1;align=left;" vertex="1" parent="1">
               <mxGeometry x="200" y="150" width="160" height="80" as="geometry"/>
             </mxCell>
             ```
             
             **Common Style Attributes:**
-            - 'whiteSpace=wrap;html=1;' - REQUIRED for text display
+            - 'whiteSpace=wrap;html=1;' - REQUIRED for text display and proper line breaking
             - 'align=left;center;right;' - Text alignment
             - 'verticalAlign=top;middle;bottom;' - Vertical alignment
             - 'fontSize=12;' - Font size
@@ -211,8 +212,7 @@ public class PromptUtil {
             5. Set parent="1" for top-level shapes, or parent="<container-id>" for grouped elements
             6. **TEXT HANDLING RULES:**
                - ALWAYS include "whiteSpace=wrap;html=1;" in the style attribute for ANY cell with text
-               - This ensures line breaks work correctly and text displays properly
-               - Without these properties, \\n characters will show as literal "\\n" instead of line breaks
+               - **DO NOT use \\n characters.** Use &lt;br&gt; for line breaks.
             
             Shape (vertex) example:
             ```xml

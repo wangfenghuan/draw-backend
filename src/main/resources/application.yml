@@ -54,9 +54,11 @@ springdoc:
       packages-to-scan: com.wfh.drawio.controller
 # knife4j的增强配置，不需要增强可以不配
 knife4j:
-  enable: false
+  production: true
   setting:
     language: zh_cn
+  basic:
+    enable: false
 
 drawio:
   internal-token: wfh-drawio-internal-secret-8888

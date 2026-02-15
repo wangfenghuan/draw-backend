@@ -38,6 +38,12 @@ public class UserVO implements Serializable {
     private String userAvatar;
 
     /**
+     * 用户账号/邮箱
+     */
+    @Schema(description = "用户账号/邮箱")
+    private String userAccount;
+
+    /**
      * 用户简介
      */
     @Schema(description = "用户简介", example = "这是一个用户简介")
