@@ -52,3 +52,6 @@ Thumbs.db
 # --- Node.js ---
 node/node_modules/
 node/.env
+
+# --- Uploaded Code Files ---
+tmp/

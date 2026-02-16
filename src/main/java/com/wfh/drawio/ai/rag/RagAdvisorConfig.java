@@ -17,7 +17,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RagAdvisorConfig {
 
-    @Value("${spring.ai.rag.top-k:4}")
+    @Value("${spring.ai.rag.top-k}")
     private int topK;
 
     /**
@@ -27,7 +27,7 @@ public class RagAdvisorConfig {
     @Bean
     public QuestionAnswerAdvisor questionAnswerAdvisor(VectorStore pgVectorStore) {
         SearchRequest searchRequest = SearchRequest.builder()
-                .similarityThreshold(0.5)
+                .similarityThreshold(0.4)
                 .topK(topK)
                 .build();
         return QuestionAnswerAdvisor.builder(pgVectorStore)
