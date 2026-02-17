@@ -6,18 +6,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 import cn.hutool.captcha.CaptchaUtil;
-import cn.hutool.captcha.LineCaptcha;
 import cn.hutool.captcha.ShearCaptcha;
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.lang.Validator;
 import cn.hutool.core.util.RandomUtil;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 
 import com.wfh.drawio.annotation.RateLimit;
@@ -28,13 +25,10 @@ import com.wfh.drawio.common.ResultUtils;
 import com.wfh.drawio.exception.BusinessException;
 import com.wfh.drawio.exception.ThrowUtils;
 import com.wfh.drawio.manager.RustFsManager;
-import com.wfh.drawio.mapper.SysRoleMapper;
 import com.wfh.drawio.model.dto.user.*;
-import com.wfh.drawio.model.entity.SysAuthority;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.enums.RateLimitType;
 import com.wfh.drawio.model.vo.LoginUserVO;
-import com.wfh.drawio.model.vo.RoleAuthorityFlatVO;
 import com.wfh.drawio.model.vo.RoleWithAuthoritiesVO;
 import com.wfh.drawio.model.vo.UserVO;
 import com.wfh.drawio.service.UserService;
@@ -46,7 +40,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -103,18 +96,25 @@ public class UserController {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         String uuid = userRegisterRequest.getUuid();
-        String key = String.format("captcha:uuid:%s", uuid);
         String userAccount = userRegisterRequest.getUserAccount();
         String userPassword = userRegisterRequest.getUserPassword();
         String checkPassword = userRegisterRequest.getCheckPassword();
         String userName = userRegisterRequest.getUserName();
-        String captchaCode = userRegisterRequest.getCaptchaCode();
-        // 先验证验证码是否正确
-        String s = stringRedisTemplate.opsForValue().get(key);
-        assert s != null;
-        if (!captchaCode.toLowerCase(Locale.ROOT).equals(s.toLowerCase(Locale.ROOT))){
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "验证码错误");
+        // String captchaCode = userRegisterRequest.getCaptchaCode();
+        
+        // 校验邮箱验证码
+        String emailCode = userRegisterRequest.getEmailCode();
+        if (StringUtils.isBlank(emailCode)) {
+             throw new BusinessException(ErrorCode.PARAMS_ERROR, "邮箱验证码不能为空");
         }
+        String emailKey = String.format("email:code:%s", userAccount);
+        String cacheEmailCode = stringRedisTemplate.opsForValue().get(emailKey);
+        if (StringUtils.isBlank(cacheEmailCode) || !cacheEmailCode.equals(emailCode)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "邮箱验证码错误或已过期");
+        }
+        // 删除邮箱验证码
+        stringRedisTemplate.delete(emailKey);
+        
         if (userName == null){
             userName = "用户" + RandomUtil.randomString(5);
         }
@@ -217,6 +217,137 @@ public class UserController {
         loginUserVO.setToken(token);
         
         return ResultUtils.success(loginUserVO);
+    }
+
+    /**
+     * 发送注册验证码
+     *
+     * @param email
+     * @return
+     */
+    @Resource
+    private com.wfh.drawio.service.UserEmailService userEmailService;
+
+    /**
+     * 发送验证码
+     *
+     * @param userEmailCodeRequest
+     * @return
+     */
+    @PostMapping("/send-register-code")
+    @Operation(summary = "发送验证码")
+    @RateLimit(limitType = RateLimitType.IP, rate = 1, rateInterval = 60)
+    public BaseResponse<Boolean> sendRegisterCode(@RequestBody UserEmailCodeRequest userEmailCodeRequest) {
+        if (userEmailCodeRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        String email = userEmailCodeRequest.getUserAccount();
+        if (StringUtils.isBlank(email)) {
+             throw new BusinessException(ErrorCode.PARAMS_ERROR, "邮箱不能为空");
+        }
+        // 校验邮箱格式
+        if (!email.matches("^[a-zA-Z0-9_.-]+@[a-zA-Z0-9-]+(\\.[a-zA-Z0-9-]+)*\\.[a-zA-Z0-9]{2,6}$")) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "邮箱格式不正确");
+        }
+
+        // 生成6位随机验证码
+        String code = RandomUtil.randomNumbers(6);
+        
+        // 统一使用一个key
+        String key = String.format("email:code:%s", email);
+        
+        // 发送邮件
+        userEmailService.sendVerificationCode(email, code);
+        
+        // 存储到Redis，有效期5分钟
+        stringRedisTemplate.opsForValue().set(key, code, 5, TimeUnit.MINUTES);
+        
+        return ResultUtils.success(true);
+    }
+
+
+    @Resource
+    private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
+    /**
+     * 更新账号（修改密码）
+     *
+     * @param userUpdateAccountRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/update/account")
+    @Operation(summary = "更新账号（修改密码/换绑邮箱）")
+    public BaseResponse<Boolean> updateAccount(@RequestBody UserUpdateAccountRequest userUpdateAccountRequest,
+            HttpServletRequest request) {
+        if (userUpdateAccountRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        String userAccount = userUpdateAccountRequest.getUserAccount(); // 邮箱
+        String emailCode = userUpdateAccountRequest.getEmailCode();
+        String newPassword = userUpdateAccountRequest.getNewPassword();
+        String checkPassword = userUpdateAccountRequest.getCheckPassword();
+
+        if (StringUtils.isBlank(emailCode)) {
+             throw new BusinessException(ErrorCode.PARAMS_ERROR, "验证码不能为空");
+        }
+
+        // 获取当前登录用户
+        User loginUser = userService.getLoginUser(request);
+        User user = new User();
+        user.setId(loginUser.getId());
+
+        // 场景1：修改密码 (密码字段不为空)
+        if (StringUtils.isNotBlank(newPassword) && StringUtils.isNotBlank(checkPassword)) {
+            if (!newPassword.equals(checkPassword)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "两次输入的密码不一致");
+            }
+            if (newPassword.length() < 8) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "密码长度不能小于8位");
+            }
+            // 验证码验证：需验证当前账号的验证码
+            String key = String.format("email:code:%s", loginUser.getUserAccount());
+            String cacheCode = stringRedisTemplate.opsForValue().get(key);
+            if (StringUtils.isBlank(cacheCode) || !cacheCode.equals(emailCode)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "验证码错误或已过期");
+            }
+            // 删除验证码
+            stringRedisTemplate.delete(key);
+
+             // 加密密码
+            String encodedPassword = passwordEncoder.encode(newPassword);
+            user.setUserPassword(encodedPassword);
+        } 
+        // 场景2：换绑邮箱 (密码为空，userAccount为新邮箱)
+        else if (StringUtils.isNotBlank(userAccount)) {
+            // 校验新邮箱格式
+             if (!userAccount.matches("^[a-zA-Z0-9_.-]+@[a-zA-Z0-9-]+(\\.[a-zA-Z0-9-]+)*\\.[a-zA-Z0-9]{2,6}$")) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "邮箱格式不正确");
+            }
+            // 检查新邮箱是否已被使用
+            QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("userAccount", userAccount);
+            long count = userService.count(queryWrapper);
+            if (count > 0) {
+                 throw new BusinessException(ErrorCode.PARAMS_ERROR, "该邮箱已被绑定");
+            }
+            
+            // 验证码验证：需验证新邮箱的验证码
+            String key = String.format("email:code:%s", userAccount);
+            String cacheCode = stringRedisTemplate.opsForValue().get(key);
+            if (StringUtils.isBlank(cacheCode) || !cacheCode.equals(emailCode)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "验证码错误或已过期");
+            }
+             // 删除验证码
+            stringRedisTemplate.delete(key);
+            
+            user.setUserAccount(userAccount);
+        } else {
+             throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数错误");
+        }
+
+        boolean result = userService.updateById(user);
+        return ResultUtils.success(result);
     }
 
     // endregion

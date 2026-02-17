@@ -46,6 +46,6 @@ public class RustFsManager {
         }
         String encodedPath = UriUtils.encodePath(objectName, StandardCharsets.UTF_8);
         // 拼接最终 URL
-        return clientConfig.getEndpoint() + "/" + clientConfig.getBucketName() + "/" + encodedPath;
+        return "https://oss.intellidraw.top" + "/" + clientConfig.getBucketName() + "/" + encodedPath;
     }
 }

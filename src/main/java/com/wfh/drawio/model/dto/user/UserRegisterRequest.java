@@ -34,4 +34,7 @@ public class UserRegisterRequest implements Serializable {
 
     @Schema(description = "验证码uuid")
     private String uuid;
+
+    @Schema(description = "邮箱验证码", example = "123456")
+    private String emailCode;
 }
