@@ -4,6 +4,7 @@ import lombok.Data;
 
 /**
  * 2. 架构图中的“连线” (比如继承、调用、外键)
+ * @author fenghuanwang
  */
 @Data
 public class ArchRelationship {

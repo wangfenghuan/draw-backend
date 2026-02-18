@@ -1,5 +1,6 @@
 package com.wfh.drawio.controller;
 
+import cn.hutool.core.io.FileUtil;
 import com.wfh.drawio.core.model.ArchNode;
 import com.wfh.drawio.core.model.ArchRelationship;
 import com.wfh.drawio.core.model.ProjectAnalysisResult;
@@ -49,7 +50,7 @@ public class CodeParseController {
      * @param file ZIP file containing Spring Boot source code
      * @return AI-optimized structured JSON with architecture information
      */
-    @PostMapping("/upload")
+    @PostMapping("/springboot/upload")
     @Operation(summary = "Upload and Analyze Spring Boot Project", 
                description = "Upload a ZIP file containing Spring Boot source code and get AI-ready architecture analysis")
     public BaseResponse<ProjectAnalysisResult> uploadAndAnalyze(@RequestParam("file") MultipartFile file) {
@@ -70,9 +71,8 @@ public class CodeParseController {
 
             // Parse project
             ProjectAnalysisResult result = javaParserService.parseProject(extractedPath.toString());
-            
+            FileUtil.del(extractedPath);
             return ResultUtils.success(result);
-            
         } catch (Exception e) {
             log.error("Error analyzing uploaded project", e);
             return ResultUtils.error(500, "Failed to analyze project: " + e.getMessage());
@@ -85,7 +85,7 @@ public class CodeParseController {
      * @param file ZIP file containing Spring Boot source code
      * @return Architecture graph for AI diagram generation
      */
-    @PostMapping("/upload/simple")
+    @PostMapping("/springboot/upload/simple")
     @Operation(summary = "Upload and Analyze (Architecture Only)", 
                description = "Returns architecture graph (nodes and links) for diagram generation")
     public BaseResponse<SimplifiedProjectDTO> uploadAndAnalyzeSimple(@RequestParam("file") MultipartFile file) {
@@ -99,12 +99,11 @@ public class CodeParseController {
             // Extract and parse
             Path extractedPath = fileExtractionService.extractZipFile(file);
             ProjectAnalysisResult fullResult = javaParserService.parseProject(extractedPath.toString());
-            
             // Convert to architecture view
             SimplifiedProjectDTO architecture = convertToArchitecture(fullResult);
-            
+            // 删除解压后的临时文件
+            FileUtil.del(extractedPath);
             return ResultUtils.success(architecture);
-            
         } catch (Exception e) {
             log.error("Error analyzing project", e);
             return ResultUtils.error(500, "Analysis failed: " + e.getMessage());
@@ -120,7 +119,6 @@ public class CodeParseController {
         
         java.util.Set<String> layers = new java.util.HashSet<>();
         java.util.List<SimplifiedProjectDTO.ComponentNode> components = new java.util.ArrayList<>();
-        
         // 1. Process Nodes
         if (full.getNodes() != null) {
             for (ArchNode node : full.getNodes()) {

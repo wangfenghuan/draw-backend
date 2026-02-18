@@ -6,7 +6,6 @@ import com.alibaba.druid.sql.ast.statement.SQLColumnDefinition;
 import com.alibaba.druid.sql.ast.statement.SQLCreateTableStatement;
 import com.alibaba.druid.sql.ast.statement.SQLForeignKeyConstraint;
 import com.alibaba.druid.sql.ast.statement.SQLTableElement;
-import com.alibaba.druid.sql.dialect.mysql.visitor.MySqlSchemaStatVisitor;
 import com.alibaba.druid.util.JdbcConstants;
 import com.wfh.drawio.core.model.ArchNode;
 import com.wfh.drawio.core.model.ArchRelationship;

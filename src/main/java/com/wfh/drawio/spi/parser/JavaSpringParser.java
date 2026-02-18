@@ -1,24 +1,23 @@
 package com.wfh.drawio.spi.parser;
 
 import com.github.javaparser.JavaParser;
+import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.ImportDeclaration;
-import com.github.javaparser.ast.Modifier;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
-import com.github.javaparser.ast.body.EnumDeclaration;
-import com.github.javaparser.ast.body.MethodDeclaration;
-import com.github.javaparser.ast.body.TypeDeclaration;
+import com.github.javaparser.ast.comments.Comment;
 import com.github.javaparser.ast.expr.AnnotationExpr;
-import com.github.javaparser.ast.expr.MethodCallExpr;
-import com.github.javaparser.ast.expr.NormalAnnotationExpr;
-import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
+import com.github.javaparser.symbolsolver.JavaSymbolSolver;
+import com.github.javaparser.symbolsolver.resolution.typesolvers.CombinedTypeSolver;
+import com.github.javaparser.symbolsolver.resolution.typesolvers.JavaParserTypeSolver;
+import com.github.javaparser.symbolsolver.resolution.typesolvers.ReflectionTypeSolver;
 import com.wfh.drawio.core.model.ArchNode;
 import com.wfh.drawio.core.model.ArchRelationship;
 import com.wfh.drawio.core.model.ProjectAnalysisResult;
-import com.wfh.drawio.model.dto.codeparse.*;
 import com.wfh.drawio.spi.LanguageParser;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,624 +31,327 @@ import java.util.stream.Stream;
 /**
  * @Title: JavaSpringParser
  * @Author wangfenghuan
- * @Package com.wfh.drawio.spi.parser
- * @Date 2026/2/17 19:25
- * @description: Java spring项目解析器
+ * @description: 极致优化的 Spring Boot 项目解析器 (支持 Javadoc 提取)
  */
 @Slf4j
 public class JavaSpringParser implements LanguageParser {
 
-
-    private final JavaParser javaParser = new JavaParser();
-
-    /**
-     * Spring bean注解
-     */
-    private static final Set<String> SPRING_COMPONENT_ANNOTATIONS = Set.of(
-            "Controller", "RestController", "Service", "Repository", "Component", "Configuration"
+    private static final Map<String, String> STEREOTYPE_MAPPING = Map.of(
+            "RestController", "API Layer",
+            "Controller", "API Layer",
+            "Service", "Business Layer",
+            "Repository", "Data Layer",
+            "Mapper", "Data Layer",
+            "Component", "Infrastructure",
+            "Configuration", "Infrastructure",
+            "Entity", "Data Layer",
+            "Table", "Data Layer"
     );
 
-    /**
-     * 依赖注入注解
-     */
-    private static final Set<String> INJECTION_ANNOTATIONS = Set.of(
-            "Autowired", "Resource", "Inject"
+    private static final Set<String> IGNORED_SUFFIXES = Set.of(
+            "Test", "Tests", "DTO", "VO", "Request", "Response", "Exception", "Constant", "Config", "Utils", "Properties"
     );
 
-    /**
-     * 中间件
-     */
-    private static final Map<String, List<String>> MIDDLEWARE_PATTERNS = Map.of(
-            "RabbitMQ", List.of("rabbitmq", "RabbitTemplate", "RabbitListener", "AmqpTemplate"),
-            "Redis", List.of("redis", "RedisTemplate", "Jedis", "Lettuce"),
-            "Kafka", List.of("kafka", "KafkaTemplate", "KafkaListener"),
-            "MySQL", List.of("mysql", "jdbc:mysql"),
-            "PostgreSQL", List.of("postgresql", "jdbc:postgresql"),
-            "MongoDB", List.of("mongodb", "MongoTemplate", "MongoRepository"),
-            "Elasticsearch", List.of("elasticsearch", "ElasticsearchTemplate"),
-            "MyBatis", List.of("mybatis", "Mapper", "@Mapper"),
-            "JPA", List.of("javax.persistence", "jakarta.persistence", "EntityManager")
+    private static final Set<String> IGNORED_PACKAGES = Set.of(
+            "java.", "javax.", "jakarta.",
+            "org.springframework.", "org.slf4j.", "org.apache.",
+            "com.baomidou.", "lombok.", "com.fasterxml."
     );
-
 
     @Override
     public String getName() {
-        return "Java-Spring-AST";
+        return "Java-Spring-Doc-Enhanced";
     }
 
-    /**
-     * 判断能否解析这个项目
-     * @param projectDir 用户上传的项目根目录或文件
-     * @return
-     */
     @Override
     public boolean canParse(String projectDir) {
-        File file = new File(projectDir);
-        if (!file.exists() || !file.isDirectory()) {
-            return false;
-        }
-
-        // Check root first
-        if (new File(file, "pom.xml").exists()) {
-            return true;
-        }
-
-        // Check immediate subdirectories (depth 2) in case of zip wrapper folder
-        try (Stream<Path> paths = Files.walk(Paths.get(projectDir), 2)) {
-            return paths
-                    .filter(p -> p.getFileName().toString().equals("pom.xml"))
-                    .findAny()
-                    .isPresent();
+        Path rootPath = Paths.get(projectDir);
+        if (!Files.exists(rootPath) || !Files.isDirectory(rootPath)) return false;
+        try (Stream<Path> stream = Files.walk(rootPath, 2)) {
+            return stream.filter(Files::isRegularFile).anyMatch(p -> {
+                String name = p.getFileName().toString();
+                return name.equals("pom.xml") || name.equals("build.gradle") || name.equals("build.gradle.kts");
+            });
         } catch (IOException e) {
-            log.error("Error checking for pom.xml", e);
             return false;
         }
     }
 
     @Override
     public ProjectAnalysisResult parse(String projectDir) {
-
-        log.info("Starting Spring Boot project analysis: {}", projectDir);
-
-        ProjectStructureDTO projectStructure = new ProjectStructureDTO();
-        projectStructure.setProjectPath(projectDir);
-        projectStructure.setProjectName(new File(projectDir).getName());
-        projectStructure.setTimestamp(System.currentTimeMillis());
-
-        Map<String, PackageInfoDTO> packageMap = new HashMap<>();
-        List<BeanInfoDTO> springBeans = new ArrayList<>();
-        List<RelationshipDTO> relationships = new ArrayList<>();
-        Map<String, MiddlewareInfoDTO> middlewareMap = new HashMap<>();
-
-        int totalFiles = 0;
-        int totalClasses = 0;
+        log.info("Starting Analysis with Javadoc Extraction: {}", projectDir);
+        JavaParser javaParser = initializeSymbolSolver(projectDir);
+        List<ArchNode> rawNodes = new ArrayList<>();
+        List<ArchRelationship> rawRelationships = new ArrayList<>();
+        Set<String> processedClasses = new HashSet<>();
 
         try {
-            // Find all Java files
             List<Path> javaFiles = findJavaFiles(projectDir);
-            totalFiles = javaFiles.size();
-            log.info("Found {} Java files", totalFiles);
-
-            // Parse each Java file
             for (Path javaFile : javaFiles) {
                 try {
                     CompilationUnit cu = javaParser.parse(javaFile).getResult().orElse(null);
-                    if (cu == null) {
-                        log.warn("Failed to parse file: {}", javaFile);
-                        continue;
-                    }
+                    if (cu == null) continue;
 
-                    String packageName = cu.getPackageDeclaration()
-                            .map(pd -> pd.getNameAsString())
-                            .orElse("default");
+                    String packageName = cu.getPackageDeclaration().map(pd -> pd.getNameAsString()).orElse("");
 
-                    PackageInfoDTO packageInfo = packageMap.computeIfAbsent(packageName, k -> {
-                        PackageInfoDTO pkg = new PackageInfoDTO();
-                        pkg.setPackageName(packageName);
-                        pkg.setClasses(new ArrayList<>());
-                        pkg.setDependencies(new ArrayList<>());
-                        return pkg;
+                    cu.findAll(ClassOrInterfaceDeclaration.class).forEach(clazz -> {
+                        String className = clazz.getNameAsString();
+                        if (isIgnoredClass(className)) return;
+
+                        String fullClassName = getFullyQualifiedName(clazz, packageName);
+                        if (processedClasses.contains(fullClassName)) return;
+
+                        ArchNode node = analyzeClass(clazz, fullClassName);
+                        if (node != null) rawNodes.add(node);
+
+                        rawRelationships.addAll(analyzeRelationships(clazz, fullClassName, cu));
+                        processedClasses.add(fullClassName);
                     });
 
-                    // Extract dependencies and detect middleware
-                    List<DependencyInfoDTO> dependencies = extractDependencies(cu);
-                    packageInfo.getDependencies().addAll(dependencies);
-                    detectMiddlewareFromImports(cu, middlewareMap);
-
-                    // Extract classes with Spring Boot analysis
-                    List<ClassInfoDTO> classes = extractClassesWithSpringAnalysis(cu, javaFile.toString());
-                    packageInfo.getClasses().addAll(classes);
-                    totalClasses += classes.size();
-
-                    // Extract Spring Beans
-                    for (ClassInfoDTO classInfo : classes) {
-                        if (classInfo.getBeanInfo() != null) {
-                            springBeans.add(classInfo.getBeanInfo());
-                        }
-
-                        // Extract relationships
-                        relationships.addAll(extractRelationships(classInfo));
-                    }
-
                 } catch (Exception e) {
-                    log.error("Error parsing file: {}", javaFile, e);
+                    log.warn("Parse error: {}", e.getMessage());
                 }
             }
-
-            // Remove duplicate dependencies per package
-            packageMap.values().forEach(pkg -> {
-                Set<String> seen = new HashSet<>();
-                List<DependencyInfoDTO> uniqueDeps = pkg.getDependencies().stream()
-                        .filter(dep -> seen.add(dep.getImportStatement()))
-                        .collect(Collectors.toList());
-                pkg.setDependencies(uniqueDeps);
-            });
-
         } catch (IOException e) {
-            log.error("Error scanning project directory", e);
-            throw new RuntimeException("Failed to scan project directory: " + e.getMessage());
+            log.error("IO Error", e);
         }
 
-        // Convert to Universal Domain Model
-        return convertToUniversalModel(packageMap, relationships, middlewareMap);
+        return optimizeResult(rawNodes, rawRelationships);
     }
 
-    private ProjectAnalysisResult convertToUniversalModel(Map<String, PackageInfoDTO> packageMap, 
-                                                          List<RelationshipDTO> relationships,
-                                                          Map<String, MiddlewareInfoDTO> middlewareMap) {
+    private ArchNode analyzeClass(ClassOrInterfaceDeclaration clazz, String id) {
+        ArchNode node = new ArchNode();
+        node.setId(id);
+        node.setName(clazz.getNameAsString());
+
+        // 1. 提取 Javadoc 注释 (新增功能)
+        String comment = extractClassComment(clazz);
+
+        String type = "Class";
+        String stereotype = "Model";
+
+        if (clazz.isInterface()) type = "Interface";
+
+        List<String> annotations = clazz.getAnnotations().stream().map(a -> a.getNameAsString()).collect(Collectors.toList());
+
+        if (clazz.getNameAsString().endsWith("Mapper") || annotations.contains("Mapper")) {
+            type = "Interface";
+            stereotype = "Data Layer";
+        }
+
+        for (Map.Entry<String, String> entry : STEREOTYPE_MAPPING.entrySet()) {
+            if (annotations.stream().anyMatch(a -> a.contains(entry.getKey()))) {
+                type = entry.getKey().toUpperCase();
+                stereotype = entry.getValue();
+                break;
+            }
+        }
+
+        node.setType(type);
+        node.setStereotype(stereotype);
+
+        // 2. 构建 Description (合并 注释 + 技术细节)
+        List<String> descParts = new ArrayList<>();
+
+        // Part A: 中文注释
+        if (comment != null && !comment.isEmpty()) {
+            descParts.add(comment);
+        }
+
+        // Part B: 技术细节 (API 路由 或 表名)
+        if ("API Layer".equals(stereotype)) {
+            List<String> routes = extractApiRoutes(clazz);
+            if (!routes.isEmpty()) {
+                descParts.add("APIs:\n" + String.join("\n", routes));
+            }
+        } else if (clazz.getNameAsString().endsWith("Entity") || annotations.contains("TableName")) {
+            extractTableName(clazz).ifPresent(t -> descParts.add("Table: " + t));
+        }
+
+        if (!descParts.isEmpty()) {
+            node.setDescription(String.join("\n\n", descParts));
+        }
+
+        node.setFields(Collections.emptyList());
+        node.setMethods(Collections.emptyList());
+
+        return node;
+    }
+
+    /**
+     * 新增：提取并清洗 Javadoc
+     */
+    private String extractClassComment(ClassOrInterfaceDeclaration clazz) {
+        return clazz.getComment()
+                .map(Comment::getContent)
+                .map(this::cleanJavadoc)
+                .orElse("");
+    }
+
+    /**
+     * 清洗 Javadoc：去除 * 号、@author 等标签
+     */
+    private String cleanJavadoc(String content) {
+        if (content == null) return "";
+        String[] lines = content.split("\n");
+        StringBuilder sb = new StringBuilder();
+
+        for (String line : lines) {
+            // 去除开头的 * 和空格
+            String cleanLine = line.trim().replaceAll("^\\*+\\s?", "").trim();
+
+            // 遇到 @ 标签（如 @author, @date）停止读取，或者跳过
+            // 这里策略是：只读取第一段描述，遇到 @ 就停止，通常第一段是核心描述
+            if (cleanLine.startsWith("@")) {
+                break;
+            }
+            // 忽略空行
+            if (!cleanLine.isEmpty()) {
+                sb.append(cleanLine).append(" "); // 将多行描述合并为一行
+            }
+        }
+        return sb.toString().trim();
+    }
+
+    private ProjectAnalysisResult optimizeResult(List<ArchNode> nodes, List<ArchRelationship> relationships) {
+        Set<String> validNodeIds = nodes.stream().map(ArchNode::getId).collect(Collectors.toSet());
+        List<ArchRelationship> cleanRelationships = relationships.stream()
+                .filter(r -> validNodeIds.contains(r.getSourceId()) && validNodeIds.contains(r.getTargetId()))
+                .filter(r -> !r.getSourceId().equals(r.getTargetId()))
+                .collect(Collectors.toList());
+
+        Set<String> connectedNodes = new HashSet<>();
+        cleanRelationships.forEach(r -> {
+            connectedNodes.add(r.getSourceId());
+            connectedNodes.add(r.getTargetId());
+        });
+
+        List<ArchNode> cleanNodes = nodes.stream()
+                .filter(n -> {
+                    if ("API Layer".equals(n.getStereotype())) return true;
+                    return connectedNodes.contains(n.getId());
+                })
+                .collect(Collectors.toList());
+
         ProjectAnalysisResult result = new ProjectAnalysisResult();
-        List<ArchNode> nodes = new ArrayList<>();
-        List<ArchRelationship> archRelationships = new ArrayList<>();
-
-        // 1. Convert Classes to Nodes
-        for (PackageInfoDTO pkg : packageMap.values()) {
-            for (ClassInfoDTO classInfo : pkg.getClasses()) {
-                ArchNode node = new ArchNode();
-                node.setId(classInfo.getFullClassName());
-                node.setName(classInfo.getClassName());
-                node.setType(classInfo.getClassType().toUpperCase());
-                
-                // Stereotype
-                if (classInfo.getBeanInfo() != null) {
-                    node.setStereotype("@" + classInfo.getBeanInfo().getBeanType());
-                } else if (classInfo.getAnnotations() != null && !classInfo.getAnnotations().isEmpty()) {
-                    // Just take the first one or combine relevant ones
-                    node.setStereotype("@" + classInfo.getAnnotations().get(0).getName());
-                }
-
-                // Fields
-                node.setFields(classInfo.getFields());
-
-                // Methods
-                if (classInfo.getMethods() != null) {
-                    node.setMethods(classInfo.getMethods().stream()
-                            .map(m -> m.getName() + "(): " + m.getReturnType())
-                            .collect(Collectors.toList()));
-                }
-                
-                nodes.add(node);
-            }
-        }
-
-        // 2. Convert Middleware to Nodes
-        if (middlewareMap != null) {
-            for (MiddlewareInfoDTO mw : middlewareMap.values()) {
-                ArchNode node = new ArchNode();
-                node.setId(mw.getType());
-                node.setName(mw.getType());
-                node.setType("MIDDLEWARE");
-                node.setStereotype("Infrastructure");
-                nodes.add(node);
-            }
-        }
-
-        // 3. Convert Relationships
-        if (relationships != null) {
-            for (RelationshipDTO rel : relationships) {
-                ArchRelationship archRel = new ArchRelationship();
-                archRel.setSourceId(rel.getSourceClass());
-                archRel.setTargetId(rel.getTargetClass());
-                archRel.setType(rel.getRelationshipType());
-                archRel.setLabel(rel.getDescription());
-                archRelationships.add(archRel);
-            }
-        }
-
-        result.setNodes(nodes);
-        result.setRelationships(archRelationships);
+        result.setNodes(cleanNodes);
+        result.setRelationships(cleanRelationships);
         return result;
     }
 
-    private List<Path> findJavaFiles(String projectPath) throws IOException {
-        Path startPath = Paths.get(projectPath);
-
-        try (Stream<Path> paths = Files.walk(startPath)) {
-            return paths
-                    .filter(Files::isRegularFile)
-                    .filter(path -> path.toString().endsWith(".java"))
-                    .filter(path -> !path.toString().contains("/target/"))
-                    .filter(path -> !path.toString().contains("/build/"))
-                    .collect(Collectors.toList());
-        }
-    }
-
-    /**
-     * Extract dependencies from compilation unit
-     */
-    private List<DependencyInfoDTO> extractDependencies(CompilationUnit cu) {
-        return cu.getImports().stream()
-                .map(this::createDependencyInfo)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Create dependency info from import declaration
-     */
-    private DependencyInfoDTO createDependencyInfo(ImportDeclaration importDecl) {
-        DependencyInfoDTO dependency = new DependencyInfoDTO();
-        dependency.setImportStatement(importDecl.getNameAsString());
-        dependency.setIsStatic(importDecl.isStatic());
-        dependency.setIsWildcard(importDecl.isAsterisk());
-        return dependency;
-    }
-
-    /**
-     * Detect middleware from imports
-     */
-    private void detectMiddlewareFromImports(CompilationUnit cu, Map<String, MiddlewareInfoDTO> middlewareMap) {
-        String fileName = cu.getStorage().map(s -> s.getFileName()).orElse("unknown");
-
-        for (ImportDeclaration importDecl : cu.getImports()) {
-            String importName = importDecl.getNameAsString().toLowerCase();
-
-            for (Map.Entry<String, List<String>> entry : MIDDLEWARE_PATTERNS.entrySet()) {
-                String middlewareType = entry.getKey();
-                List<String> patterns = entry.getValue();
-
-                for (String pattern : patterns) {
-                    if (importName.contains(pattern.toLowerCase())) {
-                        MiddlewareInfoDTO middleware = middlewareMap.computeIfAbsent(middlewareType, k -> {
-                            MiddlewareInfoDTO m = new MiddlewareInfoDTO();
-                            m.setType(middlewareType);
-                            m.setUsageLocations(new ArrayList<>());
-                            m.setConfigKeys(new ArrayList<>());
-                            m.setDetectionMethod("IMPORT");
-                            return m;
-                        });
-
-                        if (!middleware.getUsageLocations().contains(fileName)) {
-                            middleware.getUsageLocations().add(fileName);
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Extract classes with Spring Boot analysis
-     */
-    private List<ClassInfoDTO> extractClassesWithSpringAnalysis(CompilationUnit cu, String filePath) {
-        List<ClassInfoDTO> classes = new ArrayList<>();
-
-        cu.findAll(ClassOrInterfaceDeclaration.class).forEach(classDecl -> {
-            ClassInfoDTO classInfo = createClassInfoWithSpring(classDecl, filePath, cu);
-            classes.add(classInfo);
-        });
-
-        cu.findAll(EnumDeclaration.class).forEach(enumDecl -> {
-            ClassInfoDTO classInfo = createEnumInfo(enumDecl, filePath, cu);
-            classes.add(classInfo);
-        });
-
-        return classes;
-    }
-
-    /**
-     * Create class info with Spring analysis
-     */
-    private ClassInfoDTO createClassInfoWithSpring(ClassOrInterfaceDeclaration classDecl, String filePath, CompilationUnit cu) {
-        ClassInfoDTO classInfo = new ClassInfoDTO();
-
-        classInfo.setClassName(classDecl.getNameAsString());
-        classInfo.setFullClassName(getFullClassName(cu, classDecl.getNameAsString()));
-        classInfo.setClassType(classDecl.isInterface() ? "interface" : "class");
-        classInfo.setAccessModifier(getAccessModifier(classDecl.getModifiers()));
-        classInfo.setIsAbstract(classDecl.isAbstract());
-        classInfo.setIsFinal(classDecl.isFinal());
-        classInfo.setFilePath(filePath);
-        classInfo.setLineNumber(classDecl.getBegin().map(pos -> pos.line).orElse(0));
-
-        classInfo.setExtendsClass(
-                classDecl.getExtendedTypes().stream()
-                        .map(ClassOrInterfaceType::getNameAsString)
-                        .findFirst()
-                        .orElse(null)
-        );
-
-        classInfo.setImplementsInterfaces(
-                classDecl.getImplementedTypes().stream()
-                        .map(ClassOrInterfaceType::getNameAsString)
-                        .collect(Collectors.toList())
-        );
-
-        // Extract annotations
-        List<AnnotationInfoDTO> annotations = extractAnnotations(classDecl.getAnnotations());
-        classInfo.setAnnotations(annotations);
-
-        // Extract methods with Spring analysis
-        classInfo.setMethods(extractMethodsWithSpring(classDecl));
-
-        // Extract fields
-        classInfo.setFields(extractFields(classDecl));
-
-        // Extract autowired fields
-        List<String> autowiredFields = extractAutowiredFields(classDecl);
-        classInfo.setAutowiredFields(autowiredFields);
-
-        // Create Bean info if this is a Spring component
-        BeanInfoDTO beanInfo = createBeanInfo(classInfo, classDecl, autowiredFields);
-        classInfo.setBeanInfo(beanInfo);
-
-        return classInfo;
-    }
-
-    /**
-     * Extract annotations from annotation expressions
-     */
-    private List<AnnotationInfoDTO> extractAnnotations(List<AnnotationExpr> annotationExprs) {
-        return annotationExprs.stream()
-                .map(this::createAnnotationInfo)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Create annotation info
-     */
-    private AnnotationInfoDTO createAnnotationInfo(AnnotationExpr annotationExpr) {
-        AnnotationInfoDTO annotation = new AnnotationInfoDTO();
-        annotation.setName(annotationExpr.getNameAsString());
-        annotation.setFullName(annotationExpr.getName().toString());
-
-        Map<String, String> parameters = new HashMap<>();
-        if (annotationExpr.isSingleMemberAnnotationExpr()) {
-            SingleMemberAnnotationExpr singleMember = annotationExpr.asSingleMemberAnnotationExpr();
-            parameters.put("value", singleMember.getMemberValue().toString());
-        } else if (annotationExpr.isNormalAnnotationExpr()) {
-            NormalAnnotationExpr normalAnnotation = annotationExpr.asNormalAnnotationExpr();
-            normalAnnotation.getPairs().forEach(pair -> {
-                parameters.put(pair.getNameAsString(), pair.getValue().toString());
-            });
-        }
-        annotation.setParameters(parameters);
-
-        return annotation;
-    }
-
-    /**
-     * Extract autowired fields
-     */
-    private List<String> extractAutowiredFields(ClassOrInterfaceDeclaration classDecl) {
-        List<String> autowiredFields = new ArrayList<>();
-
-        classDecl.getFields().forEach(field -> {
-            boolean isAutowired = field.getAnnotations().stream()
-                    .anyMatch(ann -> INJECTION_ANNOTATIONS.contains(ann.getNameAsString()));
-
-            if (isAutowired) {
-                field.getVariables().forEach(var -> {
-                    autowiredFields.add(var.getTypeAsString() + " " + var.getNameAsString());
-                });
+    private List<ArchRelationship> analyzeRelationships(ClassOrInterfaceDeclaration clazz, String sourceId, CompilationUnit cu) {
+        List<ArchRelationship> rels = new ArrayList<>();
+        clazz.getExtendedTypes().forEach(t -> addRel(rels, sourceId, resolveType(t, cu), "EXTENDS"));
+        clazz.getImplementedTypes().forEach(t -> addRel(rels, sourceId, resolveType(t, cu), "IMPLEMENTS"));
+        clazz.getFields().forEach(field -> {
+            if (field.isAnnotationPresent("Autowired") || field.isAnnotationPresent("Resource") || field.isAnnotationPresent("Inject")) {
+                field.getVariables().forEach(v -> addRel(rels, sourceId, resolveType(field.getElementType(), cu), "DEPENDS_ON"));
             }
         });
-
-        return autowiredFields;
+        clazz.getConstructors().forEach(c -> c.getParameters().forEach(p -> addRel(rels, sourceId, resolveType(p.getType(), cu), "DEPENDS_ON")));
+        return rels;
     }
 
-    /**
-     * Create Bean info if this is a Spring component
-     */
-    private BeanInfoDTO createBeanInfo(ClassInfoDTO classInfo, ClassOrInterfaceDeclaration classDecl, List<String> autowiredFields) {
-        // Check if class has Spring component annotation
-        Optional<String> beanType = classInfo.getAnnotations().stream()
-                .map(AnnotationInfoDTO::getName)
-                .filter(SPRING_COMPONENT_ANNOTATIONS::contains)
-                .findFirst();
+    private boolean isIgnoredClass(String className) {
+        return IGNORED_SUFFIXES.stream().anyMatch(className::endsWith);
+    }
 
-        if (beanType.isEmpty()) {
+    private boolean isIgnoredPackage(String typeName) {
+        if (typeName == null) return true;
+        return IGNORED_PACKAGES.stream().anyMatch(typeName::startsWith);
+    }
+
+    private void addRel(List<ArchRelationship> rels, String src, String target, String type) {
+        if (target == null || target.equals(src) || isIgnoredPackage(target)) return;
+        ArchRelationship rel = new ArchRelationship();
+        rel.setSourceId(src);
+        rel.setTargetId(target);
+        rel.setType(type);
+        rels.add(rel);
+    }
+
+    private JavaParser initializeSymbolSolver(String projectDir) {
+        CombinedTypeSolver combinedSolver = new CombinedTypeSolver();
+        combinedSolver.add(new ReflectionTypeSolver());
+        Path srcPath = Paths.get(projectDir, "src", "main", "java");
+        if (Files.exists(srcPath)) {
+            combinedSolver.add(new JavaParserTypeSolver(srcPath));
+        } else {
+            combinedSolver.add(new JavaParserTypeSolver(new File(projectDir)));
+        }
+        ParserConfiguration config = new ParserConfiguration();
+        config.setSymbolResolver(new JavaSymbolSolver(combinedSolver));
+        return new JavaParser(config);
+    }
+
+    private String resolveType(ClassOrInterfaceType type, CompilationUnit cu) {
+        try {
+            return type.resolve().asReferenceType().getQualifiedName();
+        } catch (Exception e) {
+            return inferFullyQualifiedNameFromImports(type.getNameAsString(), cu);
+        }
+    }
+
+    private String resolveType(com.github.javaparser.ast.type.Type type, CompilationUnit cu) {
+        try {
+            if (type.isClassOrInterfaceType()) return type.asClassOrInterfaceType().resolve().asReferenceType().getQualifiedName();
             return null;
+        } catch (Exception e) {
+            return inferFullyQualifiedNameFromImports(type.asString(), cu);
         }
+    }
 
-        BeanInfoDTO beanInfo = new BeanInfoDTO();
-        beanInfo.setBeanName(classInfo.getClassName());
-        beanInfo.setClassName(classInfo.getFullClassName());
-        beanInfo.setBeanType(beanType.get());
-        beanInfo.setAutowiredFields(autowiredFields);
+    private String inferFullyQualifiedNameFromImports(String simpleName, CompilationUnit cu) {
+        Optional<ImportDeclaration> match = cu.getImports().stream()
+                .filter(i -> !i.isAsterisk() && i.getNameAsString().endsWith("." + simpleName))
+                .findFirst();
+        if (match.isPresent()) return match.get().getNameAsString();
+        String packageName = cu.getPackageDeclaration().map(pd -> pd.getNameAsString()).orElse("");
+        return packageName.isEmpty() ? simpleName : packageName + "." + simpleName;
+    }
 
-        // Extract constructor dependencies
-        List<String> constructorDeps = new ArrayList<>();
-        classDecl.getConstructors().forEach(constructor -> {
-            constructor.getParameters().forEach(param -> {
-                constructorDeps.add(param.getTypeAsString() + " " + param.getNameAsString());
+    private String getFullyQualifiedName(ClassOrInterfaceDeclaration clazz, String packageName) {
+        return packageName.isEmpty() ? clazz.getNameAsString() : packageName + "." + clazz.getNameAsString();
+    }
+
+    private List<String> extractApiRoutes(ClassOrInterfaceDeclaration clazz) {
+        List<String> routes = new ArrayList<>();
+        String basePath = "";
+        Optional<AnnotationExpr> classMapping = clazz.getAnnotationByName("RequestMapping");
+        if (classMapping.isPresent()) basePath = extractPath(classMapping.get());
+        String finalBasePath = basePath;
+        clazz.getMethods().forEach(m -> {
+            Stream.of("GetMapping", "PostMapping", "PutMapping", "DeleteMapping", "RequestMapping").forEach(methodType -> {
+                m.getAnnotationByName(methodType).ifPresent(ann -> {
+                    String methodPath = extractPath(ann);
+                    String httpMethod = methodType.replace("Mapping", "").toUpperCase();
+                    if ("REQUEST".equals(httpMethod)) httpMethod = "ALL";
+                    routes.add("[" + httpMethod + "] " + (finalBasePath + methodPath).replaceAll("//", "/"));
+                });
             });
         });
-        beanInfo.setConstructorDependencies(constructorDeps);
-
-        beanInfo.setResourceDependencies(new ArrayList<>());
-
-        return beanInfo;
+        return routes;
     }
 
-    /**
-     * Extract methods with Spring analysis
-     */
-    private List<MethodInfoDTO> extractMethodsWithSpring(TypeDeclaration<?> typeDecl) {
-        return typeDecl.getMethods().stream()
-                .map(this::createMethodInfoWithSpring)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Create method info with Spring analysis
-     */
-    private MethodInfoDTO createMethodInfoWithSpring(MethodDeclaration method) {
-        MethodInfoDTO methodInfo = new MethodInfoDTO();
-
-        methodInfo.setName(method.getNameAsString());
-        methodInfo.setReturnType(method.getTypeAsString());
-        methodInfo.setAccessModifier(getAccessModifier(method.getModifiers()));
-        methodInfo.setIsStatic(method.isStatic());
-        methodInfo.setIsAbstract(method.isAbstract());
-        methodInfo.setLineNumber(method.getBegin().map(pos -> pos.line).orElse(0));
-
-        List<String> parameters = method.getParameters().stream()
-                .map(param -> param.getTypeAsString() + " " + param.getNameAsString())
-                .collect(Collectors.toList());
-        methodInfo.setParameters(parameters);
-
-        // Extract annotations
-        List<AnnotationInfoDTO> annotations = extractAnnotations(method.getAnnotations());
-        methodInfo.setAnnotations(annotations);
-
-        // Extract method calls
-        List<String> methodCalls = extractMethodCalls(method);
-        methodInfo.setMethodCalls(methodCalls);
-
-        return methodInfo;
-    }
-
-    /**
-     * Extract method calls from method body
-     */
-    private List<String> extractMethodCalls(MethodDeclaration method) {
-        List<String> methodCalls = new ArrayList<>();
-
-        method.findAll(MethodCallExpr.class).forEach(call -> {
-            String callName = call.getNameAsString();
-            call.getScope().ifPresent(scope -> {
-                methodCalls.add(scope.toString() + "." + callName);
-            });
-            if (call.getScope().isEmpty()) {
-                methodCalls.add(callName);
-            }
-        });
-
-        return methodCalls;
-    }
-
-    /**
-     * Extract relationships from class info
-     */
-    private List<RelationshipDTO> extractRelationships(ClassInfoDTO classInfo) {
-        List<RelationshipDTO> relationships = new ArrayList<>();
-
-        // Inheritance relationship
-        if (classInfo.getExtendsClass() != null) {
-            RelationshipDTO rel = new RelationshipDTO();
-            rel.setSourceClass(classInfo.getFullClassName());
-            rel.setTargetClass(classInfo.getExtendsClass());
-            rel.setRelationshipType("EXTENDS");
-            rel.setDescription(classInfo.getClassName() + " extends " + classInfo.getExtendsClass());
-            relationships.add(rel);
+    private String extractPath(AnnotationExpr ann) {
+        if (ann.isSingleMemberAnnotationExpr()) {
+            return ann.asSingleMemberAnnotationExpr().getMemberValue().toString().replace("\"", "");
+        } else if (ann.isNormalAnnotationExpr()) {
+            return ann.asNormalAnnotationExpr().getPairs().stream()
+                    .filter(p -> p.getNameAsString().equals("value") || p.getNameAsString().equals("path"))
+                    .findFirst().map(p -> p.getValue().toString().replace("\"", "")).orElse("");
         }
+        return "";
+    }
 
-        // Interface implementation
-        if (classInfo.getImplementsInterfaces() != null) {
-            for (String interfaceName : classInfo.getImplementsInterfaces()) {
-                RelationshipDTO rel = new RelationshipDTO();
-                rel.setSourceClass(classInfo.getFullClassName());
-                rel.setTargetClass(interfaceName);
-                rel.setRelationshipType("IMPLEMENTS");
-                rel.setDescription(classInfo.getClassName() + " implements " + interfaceName);
-                relationships.add(rel);
-            }
+    private Optional<String> extractTableName(ClassOrInterfaceDeclaration clazz) {
+        return clazz.getAnnotationByName("TableName").map(this::extractPath)
+                .or(() -> clazz.getAnnotationByName("Table").map(this::extractPath));
+    }
+
+    private List<Path> findJavaFiles(String projectPath) throws IOException {
+        try (Stream<Path> paths = Files.walk(Paths.get(projectPath))) {
+            return paths.filter(Files::isRegularFile).filter(p -> p.toString().endsWith(".java")).collect(Collectors.toList());
         }
-
-        // Dependency injection relationships
-        if (classInfo.getAutowiredFields() != null) {
-            for (String field : classInfo.getAutowiredFields()) {
-                String[] parts = field.split(" ");
-                if (parts.length >= 2) {
-                    RelationshipDTO rel = new RelationshipDTO();
-                    rel.setSourceClass(classInfo.getFullClassName());
-                    rel.setTargetClass(parts[0]);
-                    rel.setRelationshipType("INJECTS");
-                    rel.setDescription(classInfo.getClassName() + " autowires " + parts[0]);
-                    relationships.add(rel);
-                }
-            }
-        }
-
-        return relationships;
-    }
-
-    /**
-     * Create enum info
-     */
-    private ClassInfoDTO createEnumInfo(EnumDeclaration enumDecl, String filePath, CompilationUnit cu) {
-        ClassInfoDTO classInfo = new ClassInfoDTO();
-
-        classInfo.setClassName(enumDecl.getNameAsString());
-        classInfo.setFullClassName(getFullClassName(cu, enumDecl.getNameAsString()));
-        classInfo.setClassType("enum");
-        classInfo.setAccessModifier(getAccessModifier(enumDecl.getModifiers()));
-        classInfo.setIsAbstract(false);
-        classInfo.setIsFinal(true);
-        classInfo.setFilePath(filePath);
-        classInfo.setLineNumber(enumDecl.getBegin().map(pos -> pos.line).orElse(0));
-
-        classInfo.setImplementsInterfaces(
-                enumDecl.getImplementedTypes().stream()
-                        .map(ClassOrInterfaceType::getNameAsString)
-                        .collect(Collectors.toList())
-        );
-
-        List<MethodInfoDTO> methods = new ArrayList<>();
-        enumDecl.getMethods().forEach(method -> methods.add(createMethodInfoWithSpring(method)));
-        classInfo.setMethods(methods);
-
-        List<String> fields = enumDecl.getEntries().stream()
-                .map(entry -> entry.getNameAsString())
-                .collect(Collectors.toList());
-        classInfo.setFields(fields);
-
-        classInfo.setAnnotations(extractAnnotations(enumDecl.getAnnotations()));
-        classInfo.setAutowiredFields(new ArrayList<>());
-
-        return classInfo;
-    }
-
-    /**
-     * Extract fields from type declaration
-     */
-    private List<String> extractFields(TypeDeclaration<?> typeDecl) {
-        return typeDecl.getFields().stream()
-                .flatMap(field -> field.getVariables().stream())
-                .map(var -> var.getTypeAsString() + " " + var.getNameAsString())
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Get access modifier from modifiers
-     */
-    private String getAccessModifier(com.github.javaparser.ast.NodeList<Modifier> modifiers) {
-        for (Modifier modifier : modifiers) {
-            if (modifier.getKeyword() == Modifier.Keyword.PUBLIC) return "public";
-            if (modifier.getKeyword() == Modifier.Keyword.PRIVATE) return "private";
-            if (modifier.getKeyword() == Modifier.Keyword.PROTECTED) return "protected";
-        }
-        return "default";
-    }
-
-    /**
-     * Get full class name (package + class name)
-     */
-    private String getFullClassName(CompilationUnit cu, String className) {
-        String packageName = cu.getPackageDeclaration()
-                .map(pd -> pd.getNameAsString())
-                .orElse("");
-
-        return packageName.isEmpty() ? className : packageName + "." + className;
     }
 }
