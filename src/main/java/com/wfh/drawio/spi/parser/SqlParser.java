@@ -113,40 +113,38 @@ public class SqlParser implements LanguageParser {
         ArchNode node = new ArchNode();
         node.setId(tableName);
         node.setName(tableName);
-        node.setType("TABLE");
-        node.setStereotype("Database Table");
+        node.setLayer("DATA");       // SQL 表属于 DATA 层
+        node.setRole("ENTITY");      // 数据库表对应 ENTITY 角色
+        node.setTableName(tableName); // 表名字段，供 LLM 生成 ER 图匹配
 
+        // Javadoc 注释：表级别注释
+        StringBuilder desc = new StringBuilder();
         if (createTable.getComment() != null) {
-            node.setDescription(cleanComment(createTable.getComment().toString()));
+            desc.append(cleanComment(createTable.getComment().toString()));
         }
 
-        List<String> fields = new ArrayList<>();
-
+        // 字段列表：拼入 description，一行一个，节省 Token。格式：「name: type [注释]」
+        List<String> fieldLines = new ArrayList<>();
         for (SQLTableElement element : createTable.getTableElementList()) {
             if (element instanceof SQLColumnDefinition) {
                 SQLColumnDefinition column = (SQLColumnDefinition) element;
                 String colName = cleanName(column.getName().getSimpleName());
 
-                if (IGNORED_COLUMNS.contains(colName.toLowerCase())) {
-                    continue;
-                }
+                if (IGNORED_COLUMNS.contains(colName.toLowerCase())) continue;
 
                 String colType = column.getDataType().getName();
-                StringBuilder fieldStr = new StringBuilder(colName).append(": ").append(colType);
+                StringBuilder fieldStr = new StringBuilder(colName).append(":").append(colType);
 
-                if (column.isPrimaryKey()) {
-                    fieldStr.append(" (PK)");
-                } else if (createTable.findColumn(colName) != null && isPrimaryKeyInConstraints(createTable, colName)) {
-                    fieldStr.append(" (PK)");
+                if (column.isPrimaryKey() ||
+                        (createTable.findColumn(colName) != null && isPrimaryKeyInConstraints(createTable, colName))) {
+                    fieldStr.append("(PK)");
                 }
 
                 if (column.getComment() != null) {
                     String comment = cleanComment(column.getComment().toString());
-                    if (!comment.isEmpty()) {
-                        fieldStr.append(" // ").append(comment);
-                    }
+                    if (!comment.isEmpty()) fieldStr.append("/").append(comment);
                 }
-                fields.add(fieldStr.toString());
+                fieldLines.add(fieldStr.toString());
 
             } else if (element instanceof SQLForeignKeyConstraint) {
                 SQLForeignKeyConstraint fk = (SQLForeignKeyConstraint) element;
@@ -155,15 +153,21 @@ public class SqlParser implements LanguageParser {
                 rel.setSourceId(tableName);
                 rel.setTargetId(targetTable);
                 rel.setType("FOREIGN_KEY");
-                String colName = fk.getReferencingColumns().stream()
-                        .map(c -> cleanName(c.getSimpleName()))
-                        .collect(Collectors.joining(","));
-                rel.setLabel("FK: " + colName);
+                // label 字段已删除，外键信息记录在 description 中
                 relationships.add(rel);
             }
         }
-        node.setFields(fields);
-        node.setMethods(Collections.emptyList());
+
+        if (!fieldLines.isEmpty()) {
+            if (desc.length() > 0) desc.append("\n");
+            // 字段列表拼成紧凑字符串，用分号隔开，供 LLM 生成表格
+            desc.append("fields: ").append(String.join(", ", fieldLines));
+        }
+
+        if (desc.length() > 0) {
+            node.setDescription(desc.toString());
+        }
+
         return node;
     }
 
@@ -173,9 +177,14 @@ public class SqlParser implements LanguageParser {
      */
     private void inferLogicalRelationships(List<ArchNode> nodes, List<ArchRelationship> relationships, Set<String> allTables) {
         for (ArchNode node : nodes) {
-            if (node.getFields() == null) continue;
+            // 从 description 中提取字段列表（格式是 "fields: col1:type1, col2:type2, ..."）
+            String desc = node.getDescription();
+            if (desc == null || !desc.contains("fields:")) continue;
 
-            for (String fieldStr : node.getFields()) {
+            String fieldsSection = desc.substring(desc.indexOf("fields:") + 7).trim();
+            String[] fieldEntries = fieldsSection.split(",");
+
+            for (String fieldStr : fieldEntries) {
                 String colName = fieldStr.split(":")[0].trim();
 
                 if (colName.toLowerCase().endsWith("_id")) {
@@ -186,21 +195,17 @@ public class SqlParser implements LanguageParser {
                         tempTarget = matchTable(potentialTableName + "s", allTables);
                     }
 
-                    // ✅ 关键修复：将可能变化的 tempTarget 赋值给一个 final 变量
                     String finalTarget = tempTarget;
-
                     if (finalTarget != null && !finalTarget.equals(node.getId())) {
-                        // 在 Lambda 中只使用 finalTarget
                         boolean exists = relationships.stream().anyMatch(r ->
                                 r.getSourceId().equals(node.getId()) && r.getTargetId().equals(finalTarget)
                         );
-
                         if (!exists) {
                             ArchRelationship rel = new ArchRelationship();
                             rel.setSourceId(node.getId());
                             rel.setTargetId(finalTarget);
                             rel.setType("LOGICAL_KEY");
-                            rel.setLabel("Link: " + colName);
+                            // label 字段已删除
                             relationships.add(rel);
                         }
                     }

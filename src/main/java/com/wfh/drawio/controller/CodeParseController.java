@@ -122,29 +122,19 @@ public class CodeParseController {
         // 1. Process Nodes
         if (full.getNodes() != null) {
             for (ArchNode node : full.getNodes()) {
-                // Filter interesting nodes (Classes with stereotype, or Middleware)
-                if (node.getStereotype() == null) continue;
-                
+                // Filter interesting nodes: must have a layer (i.e. a Spring Bean or Middleware)
+                if (node.getLayer() == null) continue;
+
                 SimplifiedProjectDTO.ComponentNode sNode = new SimplifiedProjectDTO.ComponentNode();
-                
-                // Use simple ClassName for ID to match previous behavior if possible, 
-                // but ID in ArchNode is full class name.
-                // Let's use node.getName() which is simple name.
-                sNode.setId(node.getName()); 
-                sNode.setType(node.getStereotype().replace("@", "")); // e.g. Controller
-                sNode.setDescription(node.getId()); // Full name as description
-                
-                // Determine layer
-                String layer = "Other";
-                String type = sNode.getType();
-                if (type.contains("Controller")) layer = "Controller Layer";
-                else if (type.contains("Service")) layer = "Service Layer";
-                else if (type.contains("Repository") || type.contains("Mapper")) layer = "Data Layer";
-                else if (type.contains("Configuration")) layer = "Config Layer";
-                else if (type.equalsIgnoreCase("Infrastructure")) layer = "Infrastructure";
-                
-                sNode.setLayer(layer);
-                layers.add(layer);
+                sNode.setId(node.getName());
+                // role 存储技术角色，如 CONTROLLER / SERVICE / MIDDLEWARE:REDIS 等
+                sNode.setType(node.getRole() != null ? node.getRole() : node.getLayer());
+                sNode.setDescription(node.getId()); // Full class name as description
+
+                // 直接使用新的 layer 字段，无需再次从字符串推断
+                String layerLabel = toLayerLabel(node.getLayer());
+                sNode.setLayer(layerLabel);
+                layers.add(layerLabel);
                 components.add(sNode);
             }
         }
@@ -171,10 +161,10 @@ public class CodeParseController {
         }
         arch.setLinks(links);
         
-        // 3. Process Middleware (In new model, they are just nodes)
+        // 3. Middleware nodes (新模型中中间件就是 layer=MIDDLEWARE 的节点)
         java.util.List<String> external = new java.util.ArrayList<>();
         full.getNodes().stream()
-            .filter(n -> "MIDDLEWARE".equals(n.getType()))
+            .filter(n -> "MIDDLEWARE".equals(n.getLayer()))
             .forEach(n -> external.add(n.getName()));
         arch.setExternalSystems(external);
         
@@ -191,9 +181,22 @@ public class CodeParseController {
         return components.stream().anyMatch(c -> c.getId().equals(name));
     }
     
+    /** 将 layer 枠为人可读的层级标签 */
+    private String toLayerLabel(String layer) {
+        if (layer == null) return "Other";
+        switch (layer) {
+            case "API":        return "API Layer";
+            case "BIZ":        return "Business Layer";
+            case "DATA":       return "Data Layer";
+            case "INFRA":      return "Infrastructure";
+            case "MIDDLEWARE": return "Middleware";
+            default:           return layer;
+        }
+    }
+
     private boolean isMiddleware(String name, ProjectAnalysisResult full) {
-         return full.getNodes().stream()
-                 .anyMatch(n -> "MIDDLEWARE".equals(n.getType()) && n.getName().equals(name));
+        return full.getNodes().stream()
+                .anyMatch(n -> "MIDDLEWARE".equals(n.getLayer()) && n.getName().equals(name));
     }
 
     /**
