@@ -1,7 +1,6 @@
 package com.wfh.drawio.controller;
 
 import com.wfh.drawio.ai.client.DrawClient;
-import com.wfh.drawio.ai.utils.DiagramContextUtil;
 import com.wfh.drawio.annotation.AiFeature;
 import com.wfh.drawio.annotation.RateLimit;
 import com.wfh.drawio.common.ErrorCode;
@@ -48,14 +47,7 @@ public class AIClientController {
     @Deprecated
     @AiFeature
     public String doChat(String message, String diagramId, String modelId){
-        // 绑定会话ID到ThreadLocal
-        DiagramContextUtil.bindConversationId(diagramId);
-        try {
-            return drawClient.doChat(message, diagramId, modelId);
-        } finally {
-            // 确保清理ThreadLocal
-            DiagramContextUtil.clear();
-        }
+        return drawClient.doChat(message, diagramId, modelId);
     }
 
     /**
