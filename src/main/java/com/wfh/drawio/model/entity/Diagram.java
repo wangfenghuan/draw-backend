@@ -89,6 +89,19 @@ public class Diagram {
     private String diagramType;
 
     /**
+     * 免费试用图表类型标识
+     */
+    public static final String FREE_TRIAL_TYPE = "free_trial";
+
+    /**
+     * 判断是否是免费试用图表
+     * @return true 如果是免费试用图表
+     */
+    public boolean isFreeTrial() {
+        return FREE_TRIAL_TYPE.equals(this.diagramType);
+    }
+
+    /**
      * 创建时间
      */
     @Schema(description = "创建时间", example = "2024-01-01 10:00:00")

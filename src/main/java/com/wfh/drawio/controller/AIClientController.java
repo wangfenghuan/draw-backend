@@ -6,8 +6,10 @@ import com.wfh.drawio.annotation.RateLimit;
 import com.wfh.drawio.common.ErrorCode;
 import com.wfh.drawio.exception.BusinessException;
 import com.wfh.drawio.model.dto.diagram.CustomChatRequest;
+import com.wfh.drawio.model.dto.diagram.FreeTrialRequest;
 import com.wfh.drawio.model.enums.RateLimitType;
 import com.wfh.drawio.service.AiService;
+import com.wfh.drawio.service.DiagramService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +37,9 @@ public class AIClientController {
 
     @Resource
     private AiService aiService;
+
+    @Resource
+    private DiagramService diagramService;
 
 
     /**
@@ -87,6 +92,34 @@ public class AIClientController {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         return aiService.getSseEmitter(request, drawClient);
+    }
+
+    /**
+     * 免费试用AI生成图表（无需登录）
+     * 每个IP每天限制3次使用
+     *
+     * @param request 免费试用请求
+     * @return SSE流式响应
+     */
+    @PostMapping("/free/stream")
+    @Operation(summary = "免费试用AI生成图表（无需登录）")
+    @RateLimit(key = "free_trial", rate = 3, rateInterval = 86400, limitType = RateLimitType.IP, message = "免费试用次数已用完，每天最多3次，请明天再试或注册登录使用")
+    public SseEmitter freeTrialStream(@RequestBody FreeTrialRequest request) {
+        String message = request.getMessage();
+        if (StringUtils.isEmpty(message)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "消息内容不能为空");
+        }
+
+        // 创建临时图表用于免费试用
+        String diagramId = aiService.createFreeTrialDiagram(message);
+
+        // 构建请求，使用系统默认模型
+        CustomChatRequest chatRequest = new CustomChatRequest();
+        chatRequest.setMessage(message);
+        chatRequest.setDiagramId(diagramId);
+        chatRequest.setModelId(request.getModelId()); // 可选，默认使用系统配置的模型
+
+        return aiService.getSseEmitter(chatRequest, drawClient);
     }
 
 }

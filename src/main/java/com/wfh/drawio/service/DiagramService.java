@@ -120,4 +120,16 @@ public interface DiagramService extends IService<Diagram> {
      * @param response HTTP响应对象
      */
     void downloadDiagramFile(Long diagramId, String type, String fileName, HttpServletResponse response);
+
+    /**
+     * 认领免费试用图表
+     * 将免费试用生成的临时图表绑定到指定用户账户
+     *
+     * @param diagramId 免费试用图表ID
+     * @param userId 目标用户ID
+     * @param spaceId 目标空间ID（可选，null表示公共图库）
+     * @param newName 新图表名称（可选，null保留原名）
+     * @return 认领后的图表ID
+     */
+    Long claimFreeTrialDiagram(Long diagramId, Long userId, Long spaceId, String newName);
 }

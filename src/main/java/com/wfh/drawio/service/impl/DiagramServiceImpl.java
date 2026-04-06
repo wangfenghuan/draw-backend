@@ -600,4 +600,81 @@ public class DiagramServiceImpl extends ServiceImpl<DiagramMapper, Diagram> impl
         }
     }
 
+    /**
+     * 认领免费试用图表
+     * 将免费试用生成的临时图表绑定到指定用户账户
+     */
+    @Override
+    public Long claimFreeTrialDiagram(Long diagramId, Long userId, Long spaceId, String newName) {
+        // 1. 查询图表
+        Diagram diagram = this.getById(diagramId);
+        ThrowUtils.throwIf(diagram == null, ErrorCode.NOT_FOUND_ERROR, "图表不存在");
+
+        // 2. 校验是否是免费试用图表
+        ThrowUtils.throwIf(!diagram.isFreeTrial(), ErrorCode.PARAMS_ERROR,
+                "只能认领免费试用类型的图表");
+
+        // 3. 校验图表是否已被认领（userId不为null）
+        ThrowUtils.throwIf(diagram.getUserId() != null, ErrorCode.PARAMS_ERROR,
+                "此图表已被认领");
+
+        return transactionTemplate.execute(status -> {
+            // 4. 如果指定了spaceId，校验空间额度
+            if (spaceId != null) {
+                Space space = spaceService.getById(spaceId);
+                ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
+
+                // 额度校验
+                long currentTotalCount = space.getTotalCount() != null ? space.getTotalCount() : 0L;
+                if (currentTotalCount >= space.getMaxCount()) {
+                    throw new BusinessException(ErrorCode.OPERATION_ERROR, "空间条数不足");
+                }
+
+                // 更新图表信息
+                diagram.setUserId(userId);
+                diagram.setSpaceId(spaceId);
+                diagram.setDiagramType(null); // 清除免费试用标记
+                if (StringUtils.isNotBlank(newName)) {
+                    diagram.setName(newName);
+                } else {
+                    // 移除"[免费试用]"前缀
+                    String originalName = diagram.getName();
+                    if (originalName != null && originalName.startsWith("[免费试用] ")) {
+                        diagram.setName(originalName.substring("[免费试用] ".length()));
+                    }
+                }
+
+                boolean result = this.updateById(diagram);
+                ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "认领失败");
+
+                // 更新空间额度（增加count）
+                boolean update = spaceService.lambdaUpdate()
+                        .eq(Space::getId, spaceId)
+                        .setSql("totalCount = COALESCE(totalCount, 0) + 1")
+                        .update();
+                ThrowUtils.throwIf(!update, ErrorCode.OPERATION_ERROR, "额度更新失败");
+            } else {
+                // 5. 保存到公共图库（无空间额度限制）
+                diagram.setUserId(userId);
+                diagram.setSpaceId(null);
+                diagram.setDiagramType(null); // 清除免费试用标记
+                if (StringUtils.isNotBlank(newName)) {
+                    diagram.setName(newName);
+                } else {
+                    // 移除"[免费试用]"前缀
+                    String originalName = diagram.getName();
+                    if (originalName != null && originalName.startsWith("[免费试用] ")) {
+                        diagram.setName(originalName.substring("[免费试用] ".length()));
+                    }
+                }
+
+                boolean result = this.updateById(diagram);
+                ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "认领失败");
+            }
+
+            log.info("图表认领成功: diagramId={}, userId={}, spaceId={}", diagramId, userId, spaceId);
+            return diagram.getId();
+        });
+    }
+
 }

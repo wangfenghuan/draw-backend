@@ -161,6 +161,15 @@ public class DiagramController {
         if (diagramId == null || userId == null){
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
+
+        // 检查是否是免费试用图表，自动认领
+        Diagram diagram = diagramService.getById(diagramId);
+        if (diagram != null && diagram.isFreeTrial()) {
+            // 自动认领：将临时图表绑定到当前用户
+            diagramService.claimFreeTrialDiagram(diagramId, loginUser.getId(), spaceId, null);
+            // 重新获取图表信息
+            diagram = diagramService.getById(diagramId);
+        }
         FileUploadBizEnum fileUploadBizEnum = FileUploadBizEnum.getEnumByValue(biz);
         if (fileUploadBizEnum == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -602,6 +611,22 @@ public class DiagramController {
         if (diagramEditRequest == null || diagramEditRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
+
+        User loginUser = userService.getLoginUser(request);
+
+        // 判断是否存在
+        long id = diagramEditRequest.getId();
+        Diagram oldDiagram = diagramService.getById(id);
+        ThrowUtils.throwIf(oldDiagram == null, ErrorCode.NOT_FOUND_ERROR);
+
+        // 检查是否是免费试用图表，自动认领
+        if (oldDiagram.isFreeTrial()) {
+            // 自动认领：将临时图表绑定到当前用户（保存到公共图库）
+            diagramService.claimFreeTrialDiagram(id, loginUser.getId(), null, null);
+            // 重新获取图表信息
+            oldDiagram = diagramService.getById(id);
+        }
+
         String title = diagramEditRequest.getName();
         String description = diagramEditRequest.getDescription();
         Diagram diagram = new Diagram();
@@ -609,12 +634,7 @@ public class DiagramController {
         diagram.setName(diagramEditRequest.getName());
         // 数据校验
         diagramService.validDiagram(diagram, false);
-        User loginUser = userService.getLoginUser(request);
         Long spaceId = diagramEditRequest.getSpaceId();
-        // 判断是否存在
-        long id = diagramEditRequest.getId();
-        Diagram oldDiagram = diagramService.getById(id);
-        ThrowUtils.throwIf(oldDiagram == null, ErrorCode.NOT_FOUND_ERROR);
 
         // 注解已经做了空间权限校验,这里只需要校验是否是本人或管理员(针对公共图库)
         if (spaceId == null && oldDiagram.getSpaceId() == null) {
