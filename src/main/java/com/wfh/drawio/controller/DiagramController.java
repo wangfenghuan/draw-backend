@@ -13,6 +13,7 @@ import com.wfh.drawio.model.enums.FileUploadBizEnum;
 import com.wfh.drawio.model.vo.DiagramVO;
 import com.wfh.drawio.service.*;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -30,10 +31,13 @@ import java.util.Map;
 
 
 /**
- * 图表接口
- *
- * @author fenghuanwang
+ * @Title: DiagramController
+ * @Author wangfenghuan
+ * @Package com.wfh.drawio.controller
+ * @Date 2025/12/23 16:48
+ * @description: 图表接口
  */
+@Tag(name = "图表管理", description = "图表的增删改查和文件上传接口")
 @RestController
 @RequestMapping("/diagram")
 @Slf4j

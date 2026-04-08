@@ -21,6 +21,7 @@ import com.wfh.drawio.service.SpaceService;
 import com.wfh.drawio.service.SpaceUserService;
 import com.wfh.drawio.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -35,8 +36,13 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * @author fenghuanwang
+ * @Title: SpaceUserController
+ * @Author wangfenghuan
+ * @Package com.wfh.drawio.controller
+ * @Date 2026/1/6 09:50
+ * @description: 空间成员管理接口
  */
+@Tag(name = "空间成员管理", description = "团队空间成员的增删改查接口")
 @RestController
 @RequestMapping("/spaceUser")
 @Slf4j

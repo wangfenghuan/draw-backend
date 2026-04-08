@@ -13,6 +13,8 @@ import com.wfh.drawio.model.dto.file.UploadFileRequest;
 import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.model.enums.FileUploadBizEnum;
 import com.wfh.drawio.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -24,11 +26,13 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * 文件接口
- *
- * @author wangfenghuan
- * @from wangfenghuan
+ * @Title: FileController
+ * @Author wangfenghuan
+ * @Package com.wfh.drawio.controller
+ * @Date 2025/12/23 16:48
+ * @description: 文件接口
  */
+@Tag(name = "文件管理", description = "文件上传相关接口")
 @RestController
 @RequestMapping("/file")
 @Slf4j

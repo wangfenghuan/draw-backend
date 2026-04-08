@@ -1,0 +1,55 @@
+<!--pages/login/scan.wxml-->
+<view class="container">
+  <!-- 加载中状态 -->
+  <view wx:if="{{loading}}" class="status-container">
+    <view class="loading-icon">
+      <view class="spinner"></view>
+    </view>
+    <text class="status-text">正在登录...</text>
+    <text class="status-desc">请稍候，正在验证您的身份</text>
+  </view>
+
+  <!-- 登录成功状态 -->
+  <view wx:elif="{{loginSuccess}}" class="status-container success">
+    <view class="success-icon">
+      <text class="icon">✓</text>
+    </view>
+    <text class="status-text">登录成功</text>
+    <text class="status-desc">您已成功登录 PC 端，页面将自动关闭</text>
+    <text class="countdown">{{countdown}} 秒后自动关闭</text>
+  </view>
+
+  <!-- 错误状态 -->
+  <view wx:elif="{{errorMessage}}" class="status-container error">
+    <view class="error-icon">
+      <text class="icon">!</text>
+    </view>
+    <text class="status-text">登录失败</text>
+    <text class="status-desc">{{errorMessage}}</text>
+
+    <!-- 测试用手动输入 -->
+    <view class="manual-input">
+      <text class="input-label">手动输入场景ID（测试用）:</text>
+      <input class="input-field" type="text" placeholder="请输入场景ID" bindinput="onSceneIdInput" value="{{sceneId}}" />
+      <button class="btn-primary" bindtap="onManualLogin">确认登录</button>
+    </view>
+
+    <button class="btn-secondary" bindtap="goHome">返回首页</button>
+  </view>
+
+  <!-- 等待状态（非扫码进入） -->
+  <view wx:else class="status-container">
+    <view class="info-icon">
+      <text class="icon">📱</text>
+    </view>
+    <text class="status-text">扫码登录</text>
+    <text class="status-desc">请在 PC 端打开网站并扫描二维码登录</text>
+
+    <!-- 测试用手动输入 -->
+    <view class="manual-input">
+      <text class="input-label">手动输入场景ID（测试用）:</text>
+      <input class="input-field" type="text" placeholder="请输入场景ID" bindinput="onSceneIdInput" value="{{sceneId}}" />
+      <button class="btn-primary" bindtap="onManualLogin">确认登录</button>
+    </view>
+  </view>
+</view>

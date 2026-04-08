@@ -35,6 +35,7 @@ import com.wfh.drawio.model.vo.RoleWithAuthoritiesVO;
 import com.wfh.drawio.model.vo.UserVO;
 import com.wfh.drawio.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -51,11 +52,13 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * 用户接口
- *
- * @author wangfenghuan
- * @from wangfenghuan
+ * @Title: UserController
+ * @Author wangfenghuan
+ * @Package com.wfh.drawio.controller
+ * @Date 2025/12/23 16:48
+ * @description: 用户接口
  */
+@Tag(name = "用户管理", description = "用户注册、登录、信息管理接口")
 @RestController
 @RequestMapping("/user")
 @Slf4j

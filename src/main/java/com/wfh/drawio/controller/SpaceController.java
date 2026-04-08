@@ -25,6 +25,7 @@ import com.wfh.drawio.service.DiagramService;
 import com.wfh.drawio.service.SpaceService;
 import com.wfh.drawio.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.BeanUtils;
@@ -40,8 +41,9 @@ import java.util.stream.Collectors;
  * @Author wangfenghuan
  * @Package com.wfh.drawio.controller
  * @Date 2026/1/6 09:50
- * @description:
+ * @description: 空间管理接口
  */
+@Tag(name = "空间管理", description = "空间/项目的增删改查接口")
 @RestController
 @RequestMapping("/space")
 public class SpaceController {

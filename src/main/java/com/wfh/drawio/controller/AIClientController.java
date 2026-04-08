@@ -11,6 +11,7 @@ import com.wfh.drawio.model.enums.RateLimitType;
 import com.wfh.drawio.service.AiService;
 import com.wfh.drawio.service.DiagramService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -25,8 +26,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  * @Author wangfenghuan
  * @Package com.wfh.drawio.controller
  * @Date 2025/12/20 20:05
- * @description:
+ * @description: AI图表生成接口
  */
+@Tag(name = "AI图表生成", description = "AI对话和图表生成接口")
 @RestController
 @RequestMapping("/chat")
 @Slf4j

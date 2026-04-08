@@ -17,6 +17,7 @@ import com.wfh.drawio.model.vo.FeedbackVO;
 import com.wfh.drawio.service.FeedbackService;
 import com.wfh.drawio.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +36,7 @@ import java.util.List;
  * @Date 2026/1/24 20:18
  * @description: 用户反馈接口
  */
+@Tag(name = "用户反馈", description = "用户反馈的提交和管理接口")
 @RestController
 @RequestMapping("/feedback")
 @Slf4j

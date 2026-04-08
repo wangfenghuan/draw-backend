@@ -13,6 +13,7 @@ import com.wfh.drawio.service.RoomSnapshotsService;
 import com.wfh.drawio.service.RoomUpdatesService;
 import com.wfh.drawio.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
@@ -24,10 +25,13 @@ import org.springframework.web.bind.annotation.*;
 import java.nio.charset.StandardCharsets;
 
 /**
- * 内部调用接口 (供 Node.js 协作服务使用)
- *
- * @author fenghuanwang
+ * @Title: InternalApiController
+ * @Author wangfenghuan
+ * @Package com.wfh.drawio.controller
+ * @Date 2025/12/28 11:05
+ * @description: 内部调用接口（供 Node.js 协作服务使用）
  */
+@Tag(name = "内部接口", description = "供Node.js协作服务调用的内部接口")
 @RestController
 @RequestMapping("/internal")
 @Slf4j

@@ -2,6 +2,8 @@ package com.wfh.drawio.controller;
 
 import com.wfh.drawio.common.BaseResponse;
 import com.wfh.drawio.common.ResultUtils;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
@@ -9,8 +11,13 @@ import org.springframework.web.bind.annotation.*;
 import static com.wfh.drawio.constant.RedisPrefixConstant.*;
 
 /**
- * @author fenghuanwang
+ * @Title: SystemAdminController
+ * @Author wangfenghuan
+ * @Package com.wfh.drawio.controller
+ * @Date 2025/12/28 11:05
+ * @description: 系统管理接口
  */
+@Tag(name = "系统管理", description = "系统配置和AI服务管理接口")
 @RestController
 @RequestMapping("/admin/system")
 public class SystemAdminController {

@@ -17,6 +17,7 @@ import com.wfh.drawio.model.vo.UserVO;
 import com.wfh.drawio.service.MaterialService;
 import com.wfh.drawio.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -31,8 +32,9 @@ import java.util.List;
  * @Author wangfenghuan
  * @Package com.wfh.drawio.controller
  * @Date 2026/1/24 14:42
- * @description: 素材管理接口（仅管理员）
+ * @description: 素材管理接口
  */
+@Tag(name = "素材管理", description = "素材资源的增删改查接口（仅管理员）")
 @RestController
 @RequestMapping("/material")
 @Slf4j

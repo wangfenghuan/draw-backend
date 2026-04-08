@@ -8,6 +8,7 @@ import com.wfh.drawio.model.entity.User;
 import com.wfh.drawio.service.ConversionService;
 import com.wfh.drawio.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
@@ -19,8 +20,9 @@ import java.time.LocalDateTime;
  * @Author wangfenghuan
  * @Package com.wfh.drawio.controller
  * @Date 2025/12/23 16:48
- * @description:
+ * @description: 对话历史接口
  */
+@Tag(name = "对话历史", description = "AI对话历史记录相关接口")
 @RestController
 @RequestMapping("/conversion")
 public class ConversionController {
