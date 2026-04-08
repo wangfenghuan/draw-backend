@@ -38,7 +38,7 @@ import org.springframework.web.bind.annotation.*;
  * @Date 2025/12/28 11:05
  * @description: 协作房间接口
  */
-@Tag(name = "协作房间", description = "协作房间的增删改查接口")
+@Tag(name = "roomController", description = "协作房间的增删改查接口")
 @RestController
 @RequestMapping("/room")
 public class RoomController {

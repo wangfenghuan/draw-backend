@@ -28,7 +28,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  * @Date 2025/12/20 20:05
  * @description: AI图表生成接口
  */
-@Tag(name = "AI图表生成", description = "AI对话和图表生成接口")
+@Tag(name = "aIClientController", description = "AI对话和图表生成接口")
 @RestController
 @RequestMapping("/chat")
 @Slf4j

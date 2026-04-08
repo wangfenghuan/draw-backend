@@ -35,6 +35,12 @@ public class LoginUserVO implements Serializable {
     private String userName;
 
     /**
+     * 用户账号
+     */
+    @Schema(description = "用户账号", example = "admin")
+    private String userAccount;
+
+    /**
      * 用户头像
      */
     @Schema(description = "用户头像", example = "https://example.com/avatar.jpg")

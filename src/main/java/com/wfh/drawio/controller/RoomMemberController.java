@@ -34,7 +34,7 @@ import java.util.List;
  * @Date 2025/12/28 11:05
  * @description: 房间成员管理接口
  */
-@Tag(name = "房间成员管理", description = "协作房间成员的增删改查接口")
+@Tag(name = "roomMemberController", description = "协作房间成员的增删改查接口")
 @RestController
 @RequestMapping("/roomMember")
 @Slf4j

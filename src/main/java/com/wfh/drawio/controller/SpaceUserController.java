@@ -42,7 +42,7 @@ import java.util.Objects;
  * @Date 2026/1/6 09:50
  * @description: 空间成员管理接口
  */
-@Tag(name = "空间成员管理", description = "团队空间成员的增删改查接口")
+@Tag(name = "spaceUserController", description = "团队空间成员的增删改查接口")
 @RestController
 @RequestMapping("/spaceUser")
 @Slf4j

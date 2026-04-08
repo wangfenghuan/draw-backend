@@ -32,7 +32,7 @@ import java.util.List;
  * @Date 2026/1/24 17:04
  * @description: 公告管理接口
  */
-@Tag(name = "公告管理", description = "系统公告的增删改查接口")
+@Tag(name = "announcementController", description = "系统公告的增删改查接口")
 @RestController
 @RequestMapping("/announcement")
 @Slf4j

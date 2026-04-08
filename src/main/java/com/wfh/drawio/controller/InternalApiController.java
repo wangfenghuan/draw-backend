@@ -31,7 +31,7 @@ import java.nio.charset.StandardCharsets;
  * @Date 2025/12/28 11:05
  * @description: 内部调用接口（供 Node.js 协作服务使用）
  */
-@Tag(name = "内部接口", description = "供Node.js协作服务调用的内部接口")
+@Tag(name = "internalApiController", description = "供Node.js协作服务调用的内部接口")
 @RestController
 @RequestMapping("/internal")
 @Slf4j

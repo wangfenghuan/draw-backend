@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
  * @Date 2026/1/6 09:50
  * @description: 空间管理接口
  */
-@Tag(name = "空间管理", description = "空间/项目的增删改查接口")
+@Tag(name = "spaceController", description = "空间/项目的增删改查接口")
 @RestController
 @RequestMapping("/space")
 public class SpaceController {

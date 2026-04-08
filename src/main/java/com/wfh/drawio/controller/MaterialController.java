@@ -34,7 +34,7 @@ import java.util.List;
  * @Date 2026/1/24 14:42
  * @description: 素材管理接口
  */
-@Tag(name = "素材管理", description = "素材资源的增删改查接口（仅管理员）")
+@Tag(name = "materialController", description = "素材资源的增删改查接口（仅管理员）")
 @RestController
 @RequestMapping("/material")
 @Slf4j

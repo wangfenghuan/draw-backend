@@ -37,7 +37,7 @@ import java.util.Map;
  * @Date 2025/12/23 16:48
  * @description: 图表接口
  */
-@Tag(name = "图表管理", description = "图表的增删改查和文件上传接口")
+@Tag(name = "diagramController", description = "图表的增删改查和文件上传接口")
 @RestController
 @RequestMapping("/diagram")
 @Slf4j

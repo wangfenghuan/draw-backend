@@ -32,7 +32,7 @@ import org.springframework.web.multipart.MultipartFile;
  * @Date 2025/12/23 16:48
  * @description: 文件接口
  */
-@Tag(name = "文件管理", description = "文件上传相关接口")
+@Tag(name = "fileController", description = "文件上传相关接口")
 @RestController
 @RequestMapping("/file")
 @Slf4j

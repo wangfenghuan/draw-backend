@@ -22,7 +22,7 @@ import java.time.LocalDateTime;
  * @Date 2025/12/23 16:48
  * @description: 对话历史接口
  */
-@Tag(name = "对话历史", description = "AI对话历史记录相关接口")
+@Tag(name = "conversionController", description = "AI对话历史记录相关接口")
 @RestController
 @RequestMapping("/conversion")
 public class ConversionController {

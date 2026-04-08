@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/wechat/login")
 @Slf4j
-@Tag(name = "微信扫码登录", description = "微信小程序扫码登录相关接口")
+@Tag(name = "weChatLoginController", description = "微信小程序扫码登录相关接口")
 public class WeChatLoginController {
 
     @Resource

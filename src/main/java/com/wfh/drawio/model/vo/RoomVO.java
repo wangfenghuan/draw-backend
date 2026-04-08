@@ -94,6 +94,12 @@ public class RoomVO implements Serializable {
     @Schema(description = "空间id", example = "1111111")
     private Long spaceId;
 
+    /**
+     * 访问密码
+     */
+    @Schema(description = "访问密码", example = "123456")
+    private String accessKey;
+
     public static RoomVO objToVo(DiagramRoom room) {
         return BeanUtil.copyProperties(room, RoomVO.class);
     }

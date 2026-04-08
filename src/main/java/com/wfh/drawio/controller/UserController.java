@@ -58,7 +58,7 @@ import org.springframework.web.multipart.MultipartFile;
  * @Date 2025/12/23 16:48
  * @description: 用户接口
  */
-@Tag(name = "用户管理", description = "用户注册、登录、信息管理接口")
+@Tag(name = "userController", description = "用户注册、登录、信息管理接口")
 @RestController
 @RequestMapping("/user")
 @Slf4j

@@ -36,7 +36,7 @@ import java.util.List;
  * @Date 2026/1/24 20:18
  * @description: 用户反馈接口
  */
-@Tag(name = "用户反馈", description = "用户反馈的提交和管理接口")
+@Tag(name = "feedBackController", description = "用户反馈的提交和管理接口")
 @RestController
 @RequestMapping("/feedback")
 @Slf4j

@@ -78,5 +78,11 @@ public class UserVO implements Serializable {
     @Schema(description = "创建时间", example = "2024-01-01 10:00:00")
     private Date createTime;
 
+    /**
+     * 更新时间
+     */
+    @Schema(description = "更新时间", example = "2024-01-01 10:00:00")
+    private Date updateTime;
+
     private static final long serialVersionUID = 1L;
 }
