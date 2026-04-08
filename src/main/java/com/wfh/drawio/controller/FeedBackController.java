@@ -52,12 +52,25 @@ public class FeedBackController {
     /**
      * 上传反馈图片
      *
-     * @param file
-     * @param request
-     * @return
+     * @param file    图片文件（支持常见图片格式）
+     * @param request HTTP请求
+     * @return 图片访问URL
      */
     @PostMapping("/upload/image")
-    @Operation(summary = "上传反馈图片")
+    @Operation(summary = "上传反馈图片",
+            description = """
+                    上传反馈相关的图片文件。
+
+                    **功能说明：**
+                    - 上传图片到对象存储
+                    - 目录格式：feedback/{userId}/{filename}
+
+                    **文件校验：**
+                    - 最大5MB
+                    - 仅支持图片格式
+
+                    **权限要求：**
+                    - 需要登录""")
     public BaseResponse<String> uploadFeedbackImage(@RequestPart("file") MultipartFile file,
                                                      HttpServletRequest request) {
         ThrowUtils.throwIf(file == null || file.isEmpty(), ErrorCode.PARAMS_ERROR, "文件不能为空");
@@ -91,12 +104,26 @@ public class FeedBackController {
     /**
      * 添加反馈
      *
-     * @param feedbackAddRequest
-     * @param request
-     * @return
+     * @param feedbackAddRequest 反馈添加请求（包含内容和图片）
+     * @param request            HTTP请求
+     * @return 新创建的反馈ID
      */
     @PostMapping("/add")
-    @Operation(summary = "添加反馈")
+    @Operation(summary = "添加反馈",
+            description = """
+                    用户提交反馈意见。
+
+                    **功能说明：**
+                    - 记录用户反馈内容
+                    - 支持附带图片URL
+                    - 自动关联当前登录用户
+
+                    **内容校验：**
+                    - 反馈内容不能为空
+                    - 最多2000字符
+
+                    **权限要求：**
+                    - 需要登录""")
     public BaseResponse<Long> addFeedback(@RequestBody FeedbackAddRequest feedbackAddRequest,
                                           HttpServletRequest request) {
         if (feedbackAddRequest == null) {
@@ -125,13 +152,22 @@ public class FeedBackController {
     }
 
     /**
-     * 管理员编辑反馈
+     * 管理员编辑反馈（更新处理状态）
      *
-     * @param feedbackUpdateRequest
-     * @return
+     * @param feedbackUpdateRequest 反馈更新请求（包含ID和处理状态）
+     * @return 是否更新成功
      */
     @PreAuthorize("hasAuthority('admin')")
     @PostMapping("/update")
+    @Operation(summary = "管理员编辑反馈",
+            description = """
+                    更新反馈的处理状态。
+
+                    **功能说明：**
+                    - 标记反馈是否已处理
+
+                    **权限要求：**
+                    - 仅限admin角色""")
     public BaseResponse<Boolean> updateFeedback(@RequestBody FeedbackUpdateRequest feedbackUpdateRequest) {
         Long id = feedbackUpdateRequest.getId();
         Integer isHandle = feedbackUpdateRequest.getIsHandle();
@@ -151,11 +187,17 @@ public class FeedBackController {
     /**
      * 管理员删除反馈
      *
-     * @param deleteRequest
-     * @return
+     * @param deleteRequest 删除请求（包含反馈ID）
+     * @return 是否删除成功
      */
     @PreAuthorize("hasAuthority('admin')")
     @PostMapping("/delete")
+    @Operation(summary = "管理员删除反馈",
+            description = """
+                    删除指定的反馈记录。
+
+                    **权限要求：**
+                    - 仅限admin角色""")
     public BaseResponse<Boolean> deleteFeedback(@RequestBody DeleteRequest deleteRequest) {
         Long id = deleteRequest.getId();
         if (id == null) {
@@ -171,14 +213,19 @@ public class FeedBackController {
     }
 
     /**
-     * 根据 id 获取反馈
+     * 根据ID获取反馈详情
      *
-     * @param id
-     * @param request
-     * @return
+     * @param id      反馈ID
+     * @param request HTTP请求
+     * @return 反馈实体类
      */
     @GetMapping("/get")
-    @Operation(summary = "根据 id 获取反馈")
+    @Operation(summary = "根据ID获取反馈",
+            description = """
+                    根据ID获取反馈详细信息。
+
+                    **权限要求：**
+                    - 需要登录""")
     public BaseResponse<Feedback> getFeedbackById(long id, HttpServletRequest request) {
         if (id <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -189,14 +236,23 @@ public class FeedBackController {
     }
 
     /**
-     * 根据 id 获取反馈封装类
+     * 根据ID获取反馈封装类
      *
-     * @param id
-     * @param request
-     * @return
+     * @param id      反馈ID
+     * @param request HTTP请求
+     * @return 反馈封装类（包含用户信息）
      */
     @GetMapping("/get/vo")
-    @Operation(summary = "根据 id 获取反馈封装类")
+    @Operation(summary = "根据ID获取反馈封装类",
+            description = """
+                    根据ID获取反馈详情（封装类）。
+
+                    **返回内容：**
+                    - 反馈基本信息
+                    - 提交用户信息
+
+                    **权限要求：**
+                    - 需要登录""")
     public BaseResponse<FeedbackVO> getFeedbackVOById(long id, HttpServletRequest request) {
         if (id <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -208,14 +264,19 @@ public class FeedBackController {
     }
 
     /**
-     * 分页获取反馈列表
+     * 分页获取反馈列表（仅管理员）
      *
-     * @param feedbackQueryRequest
-     * @param request
-     * @return
+     * @param feedbackQueryRequest 查询请求（分页参数）
+     * @param request               HTTP请求
+     * @return 反馈分页列表
      */
     @PostMapping("/list/page")
-    @Operation(summary = "分页获取反馈列表")
+    @Operation(summary = "分页获取反馈列表",
+            description = """
+                    分页查询反馈列表（实体类）。
+
+                    **权限要求：**
+                    - 仅限admin角色""")
     @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Page<Feedback>> listFeedbackByPage(@RequestBody FeedbackQueryRequest feedbackQueryRequest,
                                                             HttpServletRequest request) {
@@ -232,12 +293,24 @@ public class FeedBackController {
     /**
      * 分页获取反馈封装列表
      *
-     * @param feedbackQueryRequest
-     * @param request
-     * @return
+     * @param feedbackQueryRequest 查询请求（分页参数）
+     * @param request               HTTP请求
+     * @return 反馈封装类分页列表
      */
     @PostMapping("/list/page/vo")
-    @Operation(summary = "分页获取反馈封装列表")
+    @Operation(summary = "分页获取反馈封装列表",
+            description = """
+                    分页查询反馈列表（封装类）。
+
+                    **返回内容：**
+                    - 反馈基本信息
+                    - 提交用户信息
+
+                    **权限要求：**
+                    - 需要登录
+
+                    **限制条件：**
+                    - 每页最多20条""")
     public BaseResponse<Page<FeedbackVO>> listFeedbackVOByPage(@RequestBody FeedbackQueryRequest feedbackQueryRequest,
                                                                 HttpServletRequest request) {
         if (feedbackQueryRequest == null) {
@@ -258,12 +331,21 @@ public class FeedBackController {
     /**
      * 获取我提交的反馈列表
      *
-     * @param feedbackQueryRequest
-     * @param request
-     * @return
+     * @param feedbackQueryRequest 查询请求（分页参数）
+     * @param request               HTTP请求
+     * @return 我的反馈封装类分页列表
      */
     @PostMapping("/my/list/page/vo")
-    @Operation(summary = "获取我提交的反馈列表")
+    @Operation(summary = "获取我提交的反馈列表",
+            description = """
+                    分页查询当前登录用户提交的反馈。
+
+                    **权限要求：**
+                    - 需要登录
+                    - 只能查询自己提交的反馈
+
+                    **限制条件：**
+                    - 每页最多20条""")
     public BaseResponse<Page<FeedbackVO>> listMyFeedbackVOByPage(@RequestBody FeedbackQueryRequest feedbackQueryRequest,
                                                                   HttpServletRequest request) {
         if (feedbackQueryRequest == null) {

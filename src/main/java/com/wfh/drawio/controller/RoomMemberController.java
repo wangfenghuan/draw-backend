@@ -48,9 +48,9 @@ public class RoomMemberController {
     /**
      * 添加成员到房间
      *
-     * @param roomMemberAddRequest
-     * @param request
-     * @return
+     * @param roomMemberAddRequest 房间成员添加请求
+     * @param request              HTTP请求
+     * @return 新创建的成员记录ID
      */
     @PostMapping("/add")
     @PreAuthorize("@roomSecurityService.hasRoomAuthority(#roomMemberAddRequest.roomId, 'room:user:manage') or hasAuthority('admin')")
@@ -80,9 +80,9 @@ public class RoomMemberController {
     /**
      * 从房间移除成员
      *
-     * @param deleteRequest
-     * @param request
-     * @return
+     * @param deleteRequest 删除请求（包含成员记录ID）
+     * @param request       HTTP请求
+     * @return 是否删除成功
      */
     @PostMapping("/delete")
     @Operation(summary = "从房间移除成员",
@@ -121,8 +121,8 @@ public class RoomMemberController {
     /**
      * 查询某个成员在某个房间的信息
      *
-     * @param roomMemberQueryRequest
-     * @return
+     * @param roomMemberQueryRequest 查询请求（包含房间ID和用户ID）
+     * @return 房间成员实体类
      */
     @PostMapping("/get")
     @Operation(summary = "查询某个成员在某个房间的信息")
@@ -143,9 +143,9 @@ public class RoomMemberController {
     /**
      * 查询房间成员信息列表
      *
-     * @param roomMemberQueryRequest
-     * @param request
-     * @return
+     * @param roomMemberQueryRequest 查询请求
+     * @param request                HTTP请求
+     * @return 房间成员封装类列表
      */
     @PostMapping("/list")
     @Operation(summary = "查询房间成员信息列表")
@@ -161,9 +161,9 @@ public class RoomMemberController {
     /**
      * 编辑成员信息（设置权限）
      *
-     * @param roomMemberEditRequest
-     * @param request
-     * @return
+     * @param roomMemberEditRequest 成员编辑请求（包含成员ID和新角色）
+     * @param request               HTTP请求
+     * @return 是否编辑成功
      */
     @PostMapping("/edit")
     @Operation(summary = "编辑成员信息（设置权限）",
@@ -206,8 +206,8 @@ public class RoomMemberController {
     /**
      * 查询我加入的房间列表
      *
-     * @param request
-     * @return
+     * @param request HTTP请求
+     * @return 房间成员封装类列表
      */
     @PostMapping("/list/my")
     @Operation(summary = "查询我加入的房间列表")

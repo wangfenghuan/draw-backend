@@ -82,11 +82,24 @@ public class UserController {
     /**
      * 用户注册
      *
-     * @param userRegisterRequest
-     * @return
+     * @param userRegisterRequest 用户注册请求（包含账号、密码、验证码等）
+     * @return 新创建的用户ID
      */
     @PostMapping("/register")
-    @Operation(summary = "用户注册")
+    @Operation(summary = "用户注册",
+            description = """
+                    用户邮箱注册账号。
+
+                    **功能说明：**
+                    - 使用邮箱作为账号注册
+                    - 需要邮箱验证码验证
+                    - 支持邀请码机制
+
+                    **校验规则：**
+                    - 账号长度不少于4位
+                    - 密码长度不少于8位
+                    - 两次密码输入必须一致
+                    - 需要有效的邮箱验证码""")
     public BaseResponse<Long> userRegister(@RequestBody UserRegisterRequest userRegisterRequest) {
         if (userRegisterRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -134,12 +147,22 @@ public class UserController {
 
 
     /**
-     * 生成图片验证码(返回Map<uuid, 生成的base64验证码，后续uuid需要携带到注册接口>)
-     * @param request
-     * @return
+     * 生成图片验证码
+     *
+     * @param request HTTP请求
+     * @return Map<验证码UUID, Base64图片数据>
      */
     @GetMapping("/createCaptcha")
-    @Operation(summary = "生成图片验证码(返回Map<uuid, 生成的base64验证码，后续uuid需要携带到注册接口>)")
+    @Operation(summary = "生成图片验证码",
+            description = """
+                    生成图形验证码用于注册校验。
+
+                    **返回内容：**
+                    - key：验证码UUID
+                    - value：Base64编码的验证码图片
+
+                    **有效期：**
+                    - 验证码60秒内有效""")
     public BaseResponse<Map<String, String>> createCaptcha(HttpServletRequest request) {
         ShearCaptcha captcha = CaptchaUtil.createShearCaptcha(200, 100, 4, 2);
         String imageBase64 = captcha.getImageBase64();
@@ -157,12 +180,24 @@ public class UserController {
     /**
      * 用户登录
      *
-     * @param userLoginRequest
-     * @param request
-     * @return
+     * @param userLoginRequest 用户登录请求（账号和密码）
+     * @param request          HTTP请求
+     * @param response         HTTP响应（用于设置Session Cookie）
+     * @return 登录用户信息（包含JWT Token）
      */
     @PostMapping("/login")
-    @Operation(summary = "用户登录")
+    @Operation(summary = "用户登录",
+            description = """
+                    用户使用账号密码登录。
+
+                    **功能说明：**
+                    - 验证账号密码
+                    - 创建Session会话
+                    - 返回JWT Token（用于WebSocket认证）
+
+                    **返回内容：**
+                    - 用户基本信息
+                    - JWT Token（7天有效期）""")
     public BaseResponse<LoginUserVO> userLogin(@RequestBody UserLoginRequest userLoginRequest, HttpServletRequest request, HttpServletResponse response) {
         if (userLoginRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -177,13 +212,19 @@ public class UserController {
     }
 
     /**
-     * 用户注销
+     * 用户注销登录
      *
-     * @param request
-     * @return
+     * @param request HTTP请求
+     * @return 是否注销成功
      */
     @PostMapping("/logout")
-    @Operation(summary = "用户推出登录")
+    @Operation(summary = "用户退出登录",
+            description = """
+                    用户退出登录，清除Session会话。
+
+                    **功能说明：**
+                    - 清除当前用户的Session
+                    - 清除相关登录状态""")
     public BaseResponse<Boolean> userLogout(HttpServletRequest request) {
         if (request == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -194,13 +235,19 @@ public class UserController {
 
 
     /**
-     * 获取当前登录用户
+     * 获取当前登录用户信息
      *
-     * @param request
-     * @return
+     * @param request HTTP请求
+     * @return 登录用户信息（包含JWT Token）
      */
     @GetMapping("/get/login")
-    @Operation(summary = "获取当前登录用户")
+    @Operation(summary = "获取当前登录用户",
+            description = """
+                    获取当前登录用户的详细信息。
+
+                    **返回内容：**
+                    - 用户基本信息
+                    - JWT Token（用于WebSocket认证，7天有效期）""")
     public BaseResponse<LoginUserVO> getLoginUser(HttpServletRequest request) {
         User user = userService.getLoginUser(request);
         LoginUserVO loginUserVO = userService.getLoginUserVO(user);
@@ -226,13 +273,25 @@ public class UserController {
     private com.wfh.drawio.service.UserEmailService userEmailService;
 
     /**
-     * 发送验证码
+     * 发送注册验证码
      *
-     * @param userEmailCodeRequest
-     * @return
+     * @param userEmailCodeRequest 邮箱验证码请求（包含邮箱地址）
+     * @return 是否发送成功
      */
     @PostMapping("/send-register-code")
-    @Operation(summary = "发送验证码")
+    @Operation(summary = "发送注册验证码",
+            description = """
+                    向指定邮箱发送注册验证码。
+
+                    **功能说明：**
+                    - 发送6位数字验证码到邮箱
+                    - 验证码5分钟内有效
+
+                    **限流规则：**
+                    - 同一IP每分钟最多发送1次
+
+                    **邮箱格式校验：**
+                    - 必须是有效的邮箱格式""")
     @RateLimit(limitType = RateLimitType.IP, rate = 1, rateInterval = 60)
     public BaseResponse<Boolean> sendRegisterCode(@RequestBody UserEmailCodeRequest userEmailCodeRequest) {
         if (userEmailCodeRequest == null) {
@@ -263,13 +322,23 @@ public class UserController {
     }
 
     /**
-     * 查询用户剩余的 AI 调用次数（包含基础日限额和奖励额度）
+     * 查询用户剩余的AI调用次数
      *
-     * @param request
-     * @return 包含对应调用次数的 Map
+     * @param request HTTP请求
+     * @return 包含日限额、奖励额度和总额度的Map
      */
     @GetMapping("/get/ai/quota")
-    @Operation(summary = "查询用户的AI调用额度")
+    @Operation(summary = "查询用户的AI调用额度",
+            description = """
+                    查询当前用户的AI调用额度信息。
+
+                    **返回内容：**
+                    - dailyQuota：每日额度（默认5次/天）
+                    - bonusQuota：永久奖励额度
+                    - totalQuota：总额度
+
+                    **权限要求：**
+                    - 需要登录""")
     public BaseResponse<Map<String, Integer>> getUserAiQuota(HttpServletRequest request) {
         User loginUser = userService.getLoginUser(request);
         String userId = loginUser.getId().toString();
@@ -296,14 +365,28 @@ public class UserController {
     }
 
     /**
-     * 更新账号（修改密码）
+     * 更新账号信息（修改密码/换绑邮箱）
      *
-     * @param userUpdateAccountRequest
-     * @param request
-     * @return
+     * @param userUpdateAccountRequest 账号更新请求
+     * @param request                  HTTP请求
+     * @return 是否更新成功
      */
     @PostMapping("/update/account")
-    @Operation(summary = "更新账号（修改密码/换绑邮箱）")
+    @Operation(summary = "更新账号信息",
+            description = """
+                    更新账号信息，支持修改密码或换绑邮箱。
+
+                    **场景1：修改密码**
+                    - 需要验证当前邮箱的验证码
+                    - 新密码不少于8位
+                    - 两次密码输入必须一致
+
+                    **场景2：换绑邮箱**
+                    - 需要验证新邮箱的验证码
+                    - 新邮箱不能已被其他用户绑定
+
+                    **权限要求：**
+                    - 需要登录""")
     public BaseResponse<Boolean> updateAccount(@RequestBody UserUpdateAccountRequest userUpdateAccountRequest,
             HttpServletRequest request) {
         if (userUpdateAccountRequest == null) {
@@ -381,14 +464,19 @@ public class UserController {
     // region 增删改查
 
     /**
-     * 创建用户
+     * 创建用户（仅管理员）
      *
-     * @param userAddRequest
-     * @param request
-     * @return
+     * @param userAddRequest 用户创建请求
+     * @param request        HTTP请求
+     * @return 新创建的用户ID
      */
     @PostMapping("/add")
-    @Operation(summary = "创建用户")
+    @Operation(summary = "创建用户",
+            description = """
+                    管理员创建新用户。
+
+                    **权限要求：**
+                    - 仅限admin角色""")
     @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Long> addUser(@RequestBody UserAddRequest userAddRequest, HttpServletRequest request) {
         Long userId = userService.addUserByAdmin(userAddRequest);
@@ -396,14 +484,19 @@ public class UserController {
     }
 
     /**
-     * 删除用户
+     * 删除用户（仅管理员）
      *
-     * @param deleteRequest
-     * @param request
-     * @return
+     * @param deleteRequest 删除请求（包含用户ID）
+     * @param request       HTTP请求
+     * @return 是否删除成功
      */
     @PostMapping("/delete")
-    @Operation(summary = "删除用户")
+    @Operation(summary = "删除用户",
+            description = """
+                    管理员删除指定用户。
+
+                    **权限要求：**
+                    - 仅限admin角色""")
     @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Boolean> deleteUser(@RequestBody DeleteRequest deleteRequest, HttpServletRequest request) {
         if (deleteRequest == null || deleteRequest.getId() <= 0) {
@@ -414,14 +507,19 @@ public class UserController {
     }
 
     /**
-     * 更新用户
+     * 更新用户信息（仅管理员）
      *
-     * @param userUpdateRequest
-     * @param request
-     * @return
+     * @param userUpdateRequest 用户更新请求
+     * @param request           HTTP请求
+     * @return 是否更新成功
      */
     @PostMapping("/update")
-    @Operation(summary = "更新用户")
+    @Operation(summary = "更新用户",
+            description = """
+                    管理员更新用户信息。
+
+                    **权限要求：**
+                    - 仅限admin角色""")
     @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Boolean> updateUser(@RequestBody UserUpdateRequest userUpdateRequest,
             HttpServletRequest request) {
@@ -436,14 +534,19 @@ public class UserController {
     }
 
     /**
-     * 根据 id 获取用户（仅管理员）
+     * 根据ID获取用户详情（仅管理员）
      *
-     * @param id
-     * @param request
-     * @return
+     * @param id      用户ID
+     * @param request HTTP请求
+     * @return 用户实体类
      */
     @GetMapping("/get")
-    @Operation(summary = "根据 id 获取用户（仅管理员）")
+    @Operation(summary = "根据ID获取用户",
+            description = """
+                    管理员根据ID获取用户详细信息。
+
+                    **权限要求：**
+                    - 仅限admin角色""")
     @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<User> getUserById(long id, HttpServletRequest request) {
         if (id <= 0) {
@@ -455,14 +558,23 @@ public class UserController {
     }
 
     /**
-     * 根据 id 获取包装类
+     * 根据ID获取用户封装类
      *
-     * @param id
-     * @param request
-     * @return
+     * @param id      用户ID
+     * @param request HTTP请求
+     * @return 用户封装类（包含权限信息）
      */
     @GetMapping("/get/vo")
-    @Operation(summary = "根据 id 获取包装类")
+    @Operation(summary = "根据ID获取用户封装类",
+            description = """
+                    根据ID获取用户详情（封装类）。
+
+                    **返回内容：**
+                    - 用户基本信息
+                    - 用户权限列表
+
+                    **权限要求：**
+                    - 需要登录""")
     public BaseResponse<UserVO> getUserVOById(long id, HttpServletRequest request) {
         if (id <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -481,12 +593,17 @@ public class UserController {
     /**
      * 分页获取用户列表（仅管理员）
      *
-     * @param userQueryRequest
-     * @param request
-     * @return
+     * @param userQueryRequest 查询请求（分页参数）
+     * @param request          HTTP请求
+     * @return 用户分页列表
      */
     @PostMapping("/list/page")
-    @Operation(summary = "分页获取用户列表（仅管理员）")
+    @Operation(summary = "分页获取用户列表",
+            description = """
+                    管理员分页查询用户列表。
+
+                    **权限要求：**
+                    - 仅限admin角色""")
     @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Page<User>> listUserByPage(@RequestBody UserQueryRequest userQueryRequest,
             HttpServletRequest request) {
@@ -500,12 +617,20 @@ public class UserController {
     /**
      * 分页获取用户封装列表
      *
-     * @param userQueryRequest
-     * @param request
-     * @return
+     * @param userQueryRequest 查询请求（分页参数）
+     * @param request          HTTP请求
+     * @return 用户封装类分页列表
      */
     @PostMapping("/list/page/vo")
-    @Operation(summary = "分页获取用户封装列表")
+    @Operation(summary = "分页获取用户封装列表",
+            description = """
+                    分页查询用户列表（封装类）。
+
+                    **权限要求：**
+                    - 需要登录
+
+                    **限制条件：**
+                    - 每页最多20条""")
     public BaseResponse<Page<UserVO>> listUserVOByPage(@RequestBody UserQueryRequest userQueryRequest,
             HttpServletRequest request) {
         if (userQueryRequest == null) {
@@ -528,12 +653,21 @@ public class UserController {
     /**
      * 上传用户头像图片
      *
-     * @param file
-     * @param request
-     * @return
+     * @param file    头像图片文件
+     * @param request HTTP请求
+     * @return 图片访问URL
      */
     @PostMapping("/upload/image")
-    @Operation(summary = "上传头像图片")
+    @Operation(summary = "上传头像图片",
+            description = """
+                    上传用户头像图片到对象存储。
+
+                    **文件校验：**
+                    - 最大5MB
+                    - 仅支持图片格式
+
+                    **权限要求：**
+                    - 需要登录""")
     public BaseResponse<String> uploadAvataImage(@RequestPart("file") MultipartFile file,
                                                     HttpServletRequest request) {
         ThrowUtils.throwIf(file == null || file.isEmpty(), ErrorCode.PARAMS_ERROR, "文件不能为空");
@@ -567,12 +701,22 @@ public class UserController {
     /**
      * 更新个人信息
      *
-     * @param userUpdateMyRequest
-     * @param request
-     * @return
+     * @param userUpdateMyRequest 个人信息更新请求
+     * @param request             HTTP请求
+     * @return 是否更新成功
      */
     @PostMapping("/update/my")
-    @Operation(summary = "更新个人信息")
+    @Operation(summary = "更新个人信息",
+            description = """
+                    用户更新自己的个人信息。
+
+                    **可修改字段：**
+                    - 用户名
+                    - 头像
+
+                    **权限要求：**
+                    - 需要登录
+                    - 只能修改自己的信息""")
     public BaseResponse<Boolean> updateMyUser(@RequestBody UserUpdateMyRequest userUpdateMyRequest,
             HttpServletRequest request) {
         if (userUpdateMyRequest == null) {
@@ -588,10 +732,20 @@ public class UserController {
     }
 
     /**
-     * 查询所有的角色以及其所对应的权限信息
-     * @return
+     * 查询所有角色及其对应的权限信息
+     *
+     * @return 角色权限列表
      */
-    @Operation(summary = "查询所有的角色以及对应的权限")
+    @Operation(summary = "查询所有角色及对应权限",
+            description = """
+                    获取系统中所有角色及其权限配置。
+
+                    **返回内容：**
+                    - 角色信息
+                    - 角色对应的权限列表
+
+                    **权限要求：**
+                    - 仅限admin角色""")
     @PreAuthorize("hasAuthority('admin')")
     @GetMapping("/getAuth")
     public BaseResponse< List<RoleWithAuthoritiesVO>> getAllRoleAndAuth(){
@@ -602,12 +756,21 @@ public class UserController {
     /**
      * 修改用户角色
      *
-     * @param userRoleUpdateRequest
-     * @param request
-     * @return
+     * @param userRoleUpdateRequest 用户角色更新请求
+     * @param request               HTTP请求
+     * @return 是否修改成功
      */
     @PostMapping("/update/roles")
-    @Operation(summary = "修改用户角色")
+    @Operation(summary = "修改用户角色",
+            description = """
+                    修改指定用户的角色。
+
+                    **功能说明：**
+                    - 一个用户可以拥有多个角色
+                    - 角色变更后立即生效
+
+                    **权限要求：**
+                    - 仅限admin角色""")
     @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Boolean> updateUserRoles(@RequestBody UserRoleUpdateRequest userRoleUpdateRequest,
                                                   HttpServletRequest request) {
@@ -621,12 +784,21 @@ public class UserController {
     /**
      * 修改角色权限
      *
-     * @param roleAuthorityUpdateRequest
-     * @param request
-     * @return
+     * @param roleAuthorityUpdateRequest 角色权限更新请求
+     * @param request                    HTTP请求
+     * @return 是否修改成功
      */
     @PostMapping("/role/update/authorities")
-    @Operation(summary = "修改角色权限")
+    @Operation(summary = "修改角色权限",
+            description = """
+                    修改指定角色的权限配置。
+
+                    **功能说明：**
+                    - 可以批量设置角色的权限
+                    - 权限变更后立即生效
+
+                    **权限要求：**
+                    - 仅限admin角色""")
     @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Boolean> updateRoleAuthorities(@RequestBody RoleAuthorityUpdateRequest roleAuthorityUpdateRequest,
                                                          HttpServletRequest request) {

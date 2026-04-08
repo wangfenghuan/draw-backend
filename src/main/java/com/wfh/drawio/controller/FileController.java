@@ -44,12 +44,29 @@ public class FileController {
     /**
      * 文件上传
      *
-     * @param multipartFile
-     * @param uploadFileRequest
-     * @param request
-     * @return
+     * @param multipartFile     上传的文件
+     * @param uploadFileRequest 上传请求参数（包含业务类型biz）
+     * @param request           HTTP请求
+     * @return 文件访问URL
      */
     @PostMapping("/upload")
+    @Operation(summary = "文件上传",
+            description = """
+                    上传文件到对象存储。
+
+                    **功能说明：**
+                    - 根据业务类型（biz）存储文件到对应目录
+                    - 目录格式：{biz}/{userId}/{filename}
+                    - 返回可访问的文件URL
+
+                    **支持的业务类型：**
+                    - USER_AVATAR：用户头像
+
+                    **文件校验：**
+                    - 用户头像：最大1MB，支持jpeg/jpg/svg/png/webp
+
+                    **权限要求：**
+                    - 需要登录""")
     public BaseResponse<String> uploadFile(@RequestPart("file") MultipartFile multipartFile,
                                            UploadFileRequest uploadFileRequest, HttpServletRequest request) {
         String biz = uploadFileRequest.getBiz();

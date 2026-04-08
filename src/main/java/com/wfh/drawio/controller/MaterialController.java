@@ -47,12 +47,21 @@ public class MaterialController {
     /**
      * 创建素材
      *
-     * @param materialAddRequest
-     * @param request
-     * @return
+     * @param materialAddRequest 素材创建请求
+     * @param request            HTTP请求
+     * @return 新创建的素材ID
      */
     @PostMapping("/add")
-    @Operation(summary = "创建素材")
+    @Operation(summary = "创建素材",
+            description = """
+                    创建新的素材资源。
+
+                    **功能说明：**
+                    - 创建素材记录
+                    - 自动关联当前登录用户
+
+                    **权限要求：**
+                    - 仅限admin角色""")
     @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Long> addMaterial(@RequestBody MaterialAddRequest materialAddRequest,
                                           HttpServletRequest request) {
@@ -73,12 +82,17 @@ public class MaterialController {
     /**
      * 删除素材
      *
-     * @param deleteRequest
-     * @param request
-     * @return
+     * @param deleteRequest 删除请求（包含素材ID）
+     * @param request       HTTP请求
+     * @return 是否删除成功
      */
     @PostMapping("/delete")
-    @Operation(summary = "删除素材")
+    @Operation(summary = "删除素材",
+            description = """
+                    删除指定的素材资源。
+
+                    **权限要求：**
+                    - 仅限admin角色""")
     @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Boolean> deleteMaterial(@RequestBody DeleteRequest deleteRequest,
                                                 HttpServletRequest request) {
@@ -92,12 +106,17 @@ public class MaterialController {
     /**
      * 更新素材
      *
-     * @param materialUpdateRequest
-     * @param request
-     * @return
+     * @param materialUpdateRequest 素材更新请求
+     * @param request               HTTP请求
+     * @return 是否更新成功
      */
     @PostMapping("/update")
-    @Operation(summary = "更新素材")
+    @Operation(summary = "更新素材",
+            description = """
+                    更新素材资源信息。
+
+                    **权限要求：**
+                    - 仅限admin角色""")
     @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Boolean> updateMaterial(@RequestBody MaterialUpdateRequest materialUpdateRequest,
                                                 HttpServletRequest request) {
@@ -112,14 +131,19 @@ public class MaterialController {
     }
 
     /**
-     * 根据 id 获取素材
+     * 根据ID获取素材详情
      *
-     * @param id
-     * @param request
-     * @return
+     * @param id      素材ID
+     * @param request HTTP请求
+     * @return 素材实体类
      */
     @GetMapping("/get")
-    @Operation(summary = "根据 id 获取素材")
+    @Operation(summary = "根据ID获取素材",
+            description = """
+                    根据ID获取素材详细信息（实体类）。
+
+                    **权限要求：**
+                    - 仅限admin角色""")
     @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Material> getMaterialById(long id, HttpServletRequest request) {
         if (id <= 0) {
@@ -131,14 +155,23 @@ public class MaterialController {
     }
 
     /**
-     * 根据 id 获取素材封装类
+     * 根据ID获取素材封装类
      *
-     * @param id
-     * @param request
-     * @return
+     * @param id      素材ID
+     * @param request HTTP请求
+     * @return 素材封装类（包含创建用户信息）
      */
     @GetMapping("/get/vo")
-    @Operation(summary = "根据 id 获取素材封装类")
+    @Operation(summary = "根据ID获取素材封装类",
+            description = """
+                    根据ID获取素材详情（封装类）。
+
+                    **返回内容：**
+                    - 素材基本信息
+                    - 创建用户信息
+
+                    **权限要求：**
+                    - 需要登录""")
     public BaseResponse<MaterialVO> getMaterialVOById(long id, HttpServletRequest request) {
         if (id <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -153,14 +186,19 @@ public class MaterialController {
     }
 
     /**
-     * 分页获取素材列表
+     * 分页获取素材列表（仅管理员）
      *
-     * @param materialQueryRequest
-     * @param request
-     * @return
+     * @param materialQueryRequest 查询请求（分页参数）
+     * @param request               HTTP请求
+     * @return 素材分页列表
      */
     @PostMapping("/list/page")
-    @Operation(summary = "分页获取素材列表")
+    @Operation(summary = "分页获取素材列表",
+            description = """
+                    分页查询素材列表（实体类）。
+
+                    **权限要求：**
+                    - 仅限admin角色""")
     @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Page<Material>> listMaterialByPage(@RequestBody MaterialQueryRequest materialQueryRequest,
                                                             HttpServletRequest request) {
@@ -177,12 +215,23 @@ public class MaterialController {
     /**
      * 分页获取素材封装列表
      *
-     * @param materialQueryRequest
-     * @param request
-     * @return
+     * @param materialQueryRequest 查询请求（分页参数）
+     * @param request               HTTP请求
+     * @return 素材封装类分页列表
      */
     @PostMapping("/list/page/vo")
-    @Operation(summary = "分页获取素材封装列表")
+    @Operation(summary = "分页获取素材封装列表",
+            description = """
+                    分页查询素材列表（封装类）。
+
+                    **返回内容：**
+                    - 素材基本信息
+
+                    **权限要求：**
+                    - 需要登录
+
+                    **限制条件：**
+                    - 每页最多20条""")
     public BaseResponse<Page<MaterialVO>> listMaterialVOByPage(@RequestBody MaterialQueryRequest materialQueryRequest,
                                                                 HttpServletRequest request) {
         if (materialQueryRequest == null) {

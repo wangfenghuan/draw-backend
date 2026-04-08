@@ -45,12 +45,21 @@ public class AnnouncementController {
     /**
      * 创建公告
      *
-     * @param announcementAddRequest
-     * @param request
-     * @return
+     * @param announcementAddRequest 公告创建请求
+     * @param request                HTTP请求
+     * @return 新创建的公告ID
      */
     @PostMapping("/add")
-    @Operation(summary = "创建公告")
+    @Operation(summary = "创建公告",
+            description = """
+                    创建新的系统公告。
+
+                    **功能说明：**
+                    - 创建系统公告记录
+                    - 自动关联当前登录用户
+
+                    **权限要求：**
+                    - 仅限admin角色""")
     @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Long> addAnnouncement(@RequestBody AnnouncementAddRequest announcementAddRequest,
                                               HttpServletRequest request) {
@@ -72,12 +81,17 @@ public class AnnouncementController {
     /**
      * 删除公告
      *
-     * @param deleteRequest
-     * @param request
-     * @return
+     * @param deleteRequest 删除请求（包含公告ID）
+     * @param request       HTTP请求
+     * @return 是否删除成功
      */
     @PostMapping("/delete")
-    @Operation(summary = "删除公告")
+    @Operation(summary = "删除公告",
+            description = """
+                    删除指定的系统公告。
+
+                    **权限要求：**
+                    - 仅限admin角色""")
     @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Boolean> deleteAnnouncement(@RequestBody DeleteRequest deleteRequest,
                                                     HttpServletRequest request) {
@@ -91,12 +105,17 @@ public class AnnouncementController {
     /**
      * 更新公告
      *
-     * @param announcementUpdateRequest
-     * @param request
-     * @return
+     * @param announcementUpdateRequest 公告更新请求
+     * @param request                   HTTP请求
+     * @return 是否更新成功
      */
     @PostMapping("/update")
-    @Operation(summary = "更新公告")
+    @Operation(summary = "更新公告",
+            description = """
+                    更新系统公告内容。
+
+                    **权限要求：**
+                    - 仅限admin角色""")
     @PreAuthorize("hasAuthority('admin')")
     public BaseResponse<Boolean> updateAnnouncement(@RequestBody AnnouncementUpdateRequest announcementUpdateRequest,
                                                     HttpServletRequest request) {
@@ -111,14 +130,19 @@ public class AnnouncementController {
     }
 
     /**
-     * 根据 id 获取公告
+     * 根据ID获取公告详情
      *
-     * @param id
-     * @param request
-     * @return
+     * @param id      公告ID
+     * @param request HTTP请求
+     * @return 公告实体类
      */
     @GetMapping("/get")
-    @Operation(summary = "根据 id 获取公告")
+    @Operation(summary = "根据ID获取公告",
+            description = """
+                    根据ID获取公告详细信息。
+
+                    **权限要求：**
+                    - 无需登录，所有用户可查询""")
     public BaseResponse<Announcement> getAnnouncementById(long id, HttpServletRequest request) {
         if (id <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -129,14 +153,23 @@ public class AnnouncementController {
     }
 
     /**
-     * 根据 id 获取公告封装类
+     * 根据ID获取公告封装类
      *
-     * @param id
-     * @param request
-     * @return
+     * @param id      公告ID
+     * @param request HTTP请求
+     * @return 公告封装类（包含用户信息）
      */
     @GetMapping("/get/vo")
-    @Operation(summary = "根据 id 获取公告封装类")
+    @Operation(summary = "根据ID获取公告封装类",
+            description = """
+                    根据ID获取公告详情（封装类）。
+
+                    **返回内容：**
+                    - 公告基本信息
+                    - 创建用户信息
+
+                    **权限要求：**
+                    - 无需登录，所有用户可查询""")
     public BaseResponse<AnnouncementVO> getAnnouncementVOById(long id, HttpServletRequest request) {
         if (id <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -150,12 +183,17 @@ public class AnnouncementController {
     /**
      * 分页获取公告列表
      *
-     * @param announcementQueryRequest
-     * @param request
-     * @return
+     * @param announcementQueryRequest 查询请求（分页参数）
+     * @param request                   HTTP请求
+     * @return 公告分页列表
      */
     @PostMapping("/list/page")
-    @Operation(summary = "分页获取公告列表")
+    @Operation(summary = "分页获取公告列表",
+            description = """
+                    分页查询公告列表（实体类）。
+
+                    **权限要求：**
+                    - 无需登录，所有用户可查询""")
     public BaseResponse<Page<Announcement>> listAnnouncementByPage(@RequestBody AnnouncementQueryRequest announcementQueryRequest,
                                                                     HttpServletRequest request) {
         if (announcementQueryRequest == null) {
@@ -171,12 +209,24 @@ public class AnnouncementController {
     /**
      * 分页获取公告封装列表
      *
-     * @param announcementQueryRequest
-     * @param request
-     * @return
+     * @param announcementQueryRequest 查询请求（分页参数）
+     * @param request                   HTTP请求
+     * @return 公告封装类分页列表
      */
     @PostMapping("/list/page/vo")
-    @Operation(summary = "分页获取公告封装列表")
+    @Operation(summary = "分页获取公告封装列表",
+            description = """
+                    分页查询公告列表（封装类）。
+
+                    **返回内容：**
+                    - 公告基本信息
+                    - 创建用户信息
+
+                    **权限要求：**
+                    - 无需登录，所有用户可查询
+
+                    **限制条件：**
+                    - 每页最多20条""")
     public BaseResponse<Page<AnnouncementVO>> listAnnouncementVOByPage(@RequestBody AnnouncementQueryRequest announcementQueryRequest,
                                                                         HttpServletRequest request) {
         if (announcementQueryRequest == null) {

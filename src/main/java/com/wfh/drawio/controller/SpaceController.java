@@ -58,12 +58,27 @@ public class SpaceController {
 
     /**
      * 创建空间
-     * @param spaceAddReqeust
-     * @param request
-     * @return
+     *
+     * @param spaceAddReqeust 空间创建请求
+     * @param request         HTTP请求
+     * @return 新创建的空间ID
      */
     @PostMapping("/add")
-    @Operation(summary = "创建空间")
+    @Operation(summary = "创建空间",
+            description = """
+                    创建新的空间（项目）。
+
+                    **功能说明：**
+                    - 创建用于管理图表的空间
+                    - 自动关联当前登录用户为空间创建人
+
+                    **空间级别：**
+                    - 普通版：最大100个图表，100MB存储
+                    - 专业版：最大1000个图表，1000MB存储
+                    - 旗舰版：最大10000个图表，10000MB存储
+
+                    **权限要求：**
+                    - 需要登录""")
     public BaseResponse<Long> addSpace(@RequestBody SpaceAddReqeust spaceAddReqeust, HttpServletRequest request){
         User loginUser = userService.getLoginUser(request);
         long l = spaceService.addSpace(spaceAddReqeust, loginUser);

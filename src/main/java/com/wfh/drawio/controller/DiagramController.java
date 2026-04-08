@@ -586,9 +586,9 @@ public class DiagramController {
     /**
      * 编辑图表信息（给用户使用）
      *
-     * @param diagramEditRequest
-     * @param request
-     * @return
+     * @param diagramEditRequest 图表编辑请求
+     * @param request            HTTP请求
+     * @return 是否编辑成功
      */
     @PostMapping("/edit")
     @PreAuthorize("(#diagramEditRequest.spaceId == null) or @spaceSecurityService.hasSpaceAuthority(#diagramEditRequest.spaceId, 'space:diagram:edit') or hasAuthority('admin')")
@@ -665,10 +665,21 @@ public class DiagramController {
 
     /**
      * 获取所有公共空间下的图表
-     * @param pageRequest
-     * @return
+     *
+     * @param pageRequest 分页查询请求
+     * @return 公共图表分页列表
      */
     @PostMapping("/getDiagrams")
+    @Operation(summary = "获取公共图表列表",
+            description = """
+                    分页获取所有公共空间下的图表。
+
+                    **功能说明：**
+                    - 查询不属于任何私有空间的公开图表
+                    - 支持分页查询
+
+                    **权限要求：**
+                    - 无需登录""")
     public BaseResponse<Page<DiagramVO>> getByPage(@RequestBody DiagramQueryRequest pageRequest){
         Page<DiagramVO> resultPage = diagramService.getPublicDiagramsByPage(pageRequest);
         return ResultUtils.success(resultPage);
@@ -676,10 +687,19 @@ public class DiagramController {
     // endregion
 
     /**
-     * 获取图表类型
-     * @return
+     * 获取图表类型列表
+     *
+     * @return 图表类型分类Map
      */
     @GetMapping("/getDiagramTypes")
+    @Operation(summary = "获取图表类型列表",
+            description = """
+                    获取系统支持的图表类型分类。
+
+                    **返回内容：**
+                    - 通用领域：流程图、涌道图、甘特图
+                    - 软件工程领域：UML、架构图、网络拓扑图、时序图
+                    - 数据库与信息领域：ER图""")
     public BaseResponse<Map<String, List<String>>> getDiagramTypes(){
         Map<String, List<String>> res = new HashMap<>();
         res.put("通用领域", List.of("流程图", "涌道图", "甘特图"));

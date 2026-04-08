@@ -45,14 +45,28 @@ public class CodeParseController {
     private SqlParserService sqlParserService;
 
     /**
-     * Upload and analyze Spring Boot project ZIP file
+     * 上传并分析Spring Boot项目ZIP文件（完整版）
      *
-     * @param file ZIP file containing Spring Boot source code
-     * @return AI-optimized structured JSON with architecture information
+     * @param file ZIP压缩包（包含Spring Boot源代码）
+     * @return 完整的项目分析结果
      */
     @PostMapping("/springboot/upload/simple")
-    @Operation(summary = "Upload and Analyze Spring Boot Project", 
-               description = "Upload a ZIP file containing Spring Boot source code and get AI-ready architecture analysis")
+    @Operation(summary = "上传并分析Spring Boot项目（完整版）",
+               description = """
+                       上传Spring Boot项目ZIP文件，获取完整的架构分析结果。
+
+                       **功能说明：**
+                       - 解压并解析Spring Boot项目结构
+                       - 提取Controller、Service、Repository等组件
+                       - 分析组件间的依赖关系
+
+                       **支持格式：**
+                       - 仅支持ZIP压缩包
+
+                       **返回内容：**
+                       - 项目节点信息（类、接口、组件）
+                       - 组件间关系
+                       - 中间件信息""")
     public BaseResponse<ProjectAnalysisResult> uploadAndAnalyze(@RequestParam("file") MultipartFile file) {
         log.info("Received file upload: {}, size: {} bytes", file.getOriginalFilename(), file.getSize());
 
@@ -80,14 +94,26 @@ public class CodeParseController {
     }
 
     /**
-     * Upload and analyze - Architecture View (Ultra Simplified)
+     * 上传并分析Spring Boot项目（架构视图，简化版）
      *
-     * @param file ZIP file containing Spring Boot source code
-     * @return Architecture graph for AI diagram generation
+     * @param file ZIP压缩包（包含Spring Boot源代码）
+     * @return 简化的架构图数据（节点和连线）
      */
     @PostMapping("/springboot/upload")
-    @Operation(summary = "Upload and Analyze (Architecture Only)", 
-               description = "Returns architecture graph (nodes and links) for diagram generation")
+    @Operation(summary = "上传并分析Spring Boot项目（架构视图）",
+               description = """
+                       上传Spring Boot项目ZIP文件，获取简化的架构图数据。
+
+                       **功能说明：**
+                       - 返回架构图所需的节点和连线数据
+                       - 自动识别层级结构（API、业务、数据、中间件）
+                       - 适合直接用于前端渲染架构图
+
+                       **返回内容：**
+                       - layers：层级列表
+                       - components：组件节点列表
+                       - links：组件间关系连线
+                       - externalSystems：外部系统/中间件列表""")
     public BaseResponse<SimplifiedProjectDTO> uploadAndAnalyzeSimple(@RequestParam("file") MultipartFile file) {
         log.info("Received architecture analysis request: {}", file.getOriginalFilename());
 
@@ -200,14 +226,28 @@ public class CodeParseController {
     }
 
     /**
-     * Parse SQL DDL and return structured metadata with inferred relationships
+     * 解析SQL DDL语句
      *
-     * @param file SQL file (e.g., .sql)
-     * @return List of parsed tables and relationships
+     * @param file SQL文件（.sql格式）
+     * @return 解析后的表结构和关系列表
      */
     @PostMapping("/parse/sql")
-    @Operation(summary = "Parse SQL DDL (Druid + Semantic AI)", 
-               description = "Parses SQL DDL to extracted tables, columns, and infers relationships using semantic analysis")
+    @Operation(summary = "解析SQL DDL（Druid + 语义AI）",
+               description = """
+                       解析SQL DDL语句，提取表结构和推断关系。
+
+                       **功能说明：**
+                       - 使用Druid解析SQL语法
+                       - 提取表名、字段名、字段类型
+                       - 智能推断表间关系（外键、命名约定）
+
+                       **支持格式：**
+                       - 标准SQL DDL语句（CREATE TABLE等）
+
+                       **返回内容：**
+                       - 表名列表
+                       - 字段信息（名称、类型、约束）
+                       - 推断的表间关系""")
     public BaseResponse<List<SqlParseResultDTO>> parseSql(@RequestParam("file") MultipartFile file) {
         log.info("Received SQL parse request: {}", file.getOriginalFilename());
 

@@ -63,11 +63,24 @@ public class RoomController {
     private DiagramService diagramService;
 
     /**
-     * 保存图表数据(协同编辑用)
-     * @param roomId
-     * @param encryptedData
+     * 保存图表数据（协同编辑用）
+     *
+     * @param roomId       房间ID
+     * @param encryptedData 加密后的图表数据（字节数组）
+     * @param request      HTTP请求
+     * @return 是否保存成功
      */
     @PostMapping("/{roomId}/save")
+    @Operation(summary = "保存图表数据",
+            description = """
+                    保存协作房间的图表编辑数据。
+
+                    **功能说明：**
+                    - 用于协同编辑场景保存图表状态
+                    - 数据以加密字节数组形式存储
+
+                    **权限要求：**
+                    - 需要有房间的编辑权限""")
     @PreAuthorize("@roomSecurityService.hasRoomAuthority(#roomId, 'room:diagram:edit') or hasAuthority('admin')")
     public BaseResponse<Boolean> save(@PathVariable Long roomId, @RequestBody byte[] encryptedData, HttpServletRequest request) {
         // 查询房间信息
@@ -126,12 +139,24 @@ public class RoomController {
 
     /**
      * 创建房间
-     * @param roomAddRequest
-     * @param request
-     * @return
+     *
+     * @param roomAddRequest 房间创建请求（包含图表ID和空间ID）
+     * @param request        HTTP请求
+     * @return 新创建的房间ID（如果房间已存在则返回已存在的ID）
      */
     @PostMapping("/add")
-    @Operation(summary = "创建房间")
+    @Operation(summary = "创建房间",
+            description = """
+                    创建协作房间用于多人实时编辑。
+
+                    **功能说明：**
+                    - 为图表创建协作房间
+                    - 如果房间已存在则直接返回已存在的房间ID
+                    - 创建人自动成为房间管理员
+
+                    **权限要求：**
+                    - 需要登录
+                    - 需要有对应空间的权限""")
     public BaseResponse<Long> addRoom(@RequestBody RoomAddRequest roomAddRequest, HttpServletRequest request) {
         ThrowUtils.throwIf(roomAddRequest == null, ErrorCode.PARAMS_ERROR);
         User loginUser = userService.getLoginUser(request);
@@ -170,9 +195,9 @@ public class RoomController {
     /**
      * 删除房间
      *
-     * @param deleteRequest
-     * @param request
-     * @return
+     * @param deleteRequest 删除请求（包含房间ID）
+     * @param request       HTTP请求
+     * @return 是否删除成功
      */
     @PostMapping("/delete")
     @PreAuthorize("@roomSecurityService.hasRoomAuthority(#deleteRequest.id, 'room:admin') or hasAuthority('admin')")
@@ -204,8 +229,8 @@ public class RoomController {
     /**
      * 更新房间（仅管理员可用）
      *
-     * @param roomUpdateRequest
-     * @return
+     * @param roomUpdateRequest 房间更新请求
+     * @return 是否更新成功
      */
     @PostMapping("/update")
     @PreAuthorize("hasAuthority('admin')")
@@ -229,13 +254,20 @@ public class RoomController {
     }
 
     /**
-     * 根据 id 获取房间（封装类）
+     * 根据ID获取房间详情（封装类）
      *
-     * @param id
-     * @return
+     * @param id      房间ID
+     * @param request HTTP请求
+     * @return 房间封装类
      */
     @GetMapping("/get/vo")
-    @Operation(summary = "根据 id 获取房间（封装类）")
+    @Operation(summary = "根据ID获取房间详情",
+            description = """
+                    根据ID获取房间详细信息（封装类）。
+
+                    **权限要求：**
+                    - 需要登录
+                    - 需要有房间的查看权限""")
     public BaseResponse<RoomVO> getDiagramRoomVOById(long id, HttpServletRequest request) {
         ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
         // 查询数据库
@@ -252,8 +284,8 @@ public class RoomController {
     /**
      * 分页获取房间列表（仅管理员可用）
      *
-     * @param roomQueryRequest
-     * @return
+     * @param roomQueryRequest 查询请求（分页参数）
+     * @return 房间分页列表
      */
     @PostMapping("/list/page")
     @PreAuthorize("hasAuthority('admin')")
@@ -270,9 +302,9 @@ public class RoomController {
     /**
      * 分页获取房间列表（封装类）
      *
-     * @param roomQueryRequest
-     * @param request
-     * @return
+     * @param roomQueryRequest 查询请求（分页参数）
+     * @param request          HTTP请求
+     * @return 房间封装类分页列表
      */
     @PostMapping("/list/page/vo")
     @Operation(summary = "分页获取房间列表（封装类）")
@@ -300,12 +332,21 @@ public class RoomController {
     /**
      * 分页获取当前登录用户创建的房间列表
      *
-     * @param roomQueryRequest
-     * @param request
-     * @return
+     * @param roomQueryRequest 查询请求（分页参数）
+     * @param request          HTTP请求
+     * @return 我的房间封装类分页列表
      */
     @PostMapping("/my/list/page/vo")
-    @Operation(summary = "分页获取当前登录用户创建的房间列表")
+    @Operation(summary = "分页获取我创建的房间列表",
+            description = """
+                    分页查询当前登录用户创建的所有协作房间。
+
+                    **权限要求：**
+                    - 需要登录
+                    - 只能查询自己创建的房间
+
+                    **限制条件：**
+                    - 每页最多20条""")
     public BaseResponse<Page<RoomVO>> listMyDiagramRoomVOByPage(@RequestBody RoomQueryRequest roomQueryRequest,
                                                                HttpServletRequest request) {
         ThrowUtils.throwIf(roomQueryRequest == null, ErrorCode.PARAMS_ERROR);
@@ -326,9 +367,9 @@ public class RoomController {
     /**
      * 编辑房间（给用户使用）
      *
-     * @param roomEditRequest
-     * @param request
-     * @return
+     * @param roomEditRequest 房间编辑请求
+     * @param request         HTTP请求
+     * @return 是否编辑成功
      */
     @PostMapping("/edit")
     @Operation(summary = "编辑房间（给用户使用）")
@@ -356,12 +397,21 @@ public class RoomController {
 
     /**
      * 修改房间访问地址
-     * @param roomUrlEditRequest
-     * @param request
-     * @return
+     *
+     * @param roomUrlEditRequest 房间URL编辑请求
+     * @param request            HTTP请求
+     * @return 是否修改成功
      */
     @PostMapping("/updateRoomUrl")
-    @Operation(summary = "修改房间访问地址")
+    @Operation(summary = "修改房间访问地址",
+            description = """
+                    更新协作房间的访问URL。
+
+                    **功能说明：**
+                    - 修改房间的分享链接地址
+
+                    **权限要求：**
+                    - 需要登录""")
     public BaseResponse<Boolean> updateRoomUrl(@RequestBody RoomUrlEditRequest roomUrlEditRequest, HttpServletRequest request) {
         if (roomUrlEditRequest == null || roomUrlEditRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
