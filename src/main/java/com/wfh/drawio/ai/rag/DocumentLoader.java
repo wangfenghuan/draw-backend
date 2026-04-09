@@ -87,7 +87,7 @@ public class DocumentLoader {
                 // 第二层：Token 语义分块（在句子边界处切割）
                 List<Document> chunkedDocs = textSplitter.apply(rawDocs);
 
-                log.debug("文件 {} -> 原始段落 {} 个，分块后 {} 个", filename, rawDocs.size(), chunkedDocs.size());
+                log.info("文件 {} -> 原始段落 {} 个，分块后 {} 个", filename, rawDocs.size(), chunkedDocs.size());
                 allDoc.addAll(chunkedDocs);
             }
         } catch (IOException e) {
